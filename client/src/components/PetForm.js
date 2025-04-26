@@ -9,21 +9,42 @@ function PetForm({ fetchPets }) {
     lng: '',
     image: ''
   });
+  const [error, setError] = useState(null);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const getCoordinates = async (location) => {
+    try {
+      const response = await fetch(
+        `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.REACT_APP_YANDEX_MAPS_API_KEY}&geocode=${encodeURIComponent(location)}&format=json`
+      );
+      const data = await response.json();
+      const pos = data.response.GeoObjectCollection.featureMember[0]?.GeoObject.Point.pos;
+      if (pos) {
+        const [lng, lat] = pos.split(' ').map(parseFloat);
+        return { lat, lng };
+      }
+      throw new Error('Не удалось найти координаты для этого местоположения');
+    } catch (err) {
+      throw err;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Sending data:', formData);
+    setError(null);
     try {
-      // Преобразуем lat и lng в числа
-      const payload = {
-        ...formData,
-        lat: formData.lat ? parseFloat(formData.lat) : null,
-        lng: formData.lng ? parseFloat(formData.lng) : null
-      };
+      let payload = { ...formData };
+      if (formData.location && !formData.lat && !formData.lng) {
+        const coords = await getCoordinates(formData.location);
+        payload.lat = coords.lat;
+        payload.lng = coords.lng;
+      } else {
+        payload.lat = formData.lat ? parseFloat(formData.lat) : null;
+        payload.lng = formData.lng ? parseFloat(formData.lng) : null;
+      }
       const response = await fetch('http://localhost:5000/api/pets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -31,30 +52,31 @@ function PetForm({ fetchPets }) {
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error}`);
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('Response:', data);
       fetchPets();
       setFormData({ type: '', description: '', location: '', lat: '', lng: '', image: '' });
     } catch (error) {
-      console.error('Error creating pet:', error);
+      console.error('Ошибка добавления животного:', error);
+      setError(error.message);
     }
   };
 
   return (
     <form onSubmit={handleSubmit}>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       <input
         type="text"
         name="type"
-        placeholder="Type (e.g., Dog, Cat)"
+        placeholder="Тип (например, Собака, Кошка)"
         value={formData.type}
         onChange={handleChange}
         required
       />
       <textarea
         name="description"
-        placeholder="Description"
+        placeholder="Описание"
         value={formData.description}
         onChange={handleChange}
         required
@@ -62,7 +84,7 @@ function PetForm({ fetchPets }) {
       <input
         type="text"
         name="location"
-        placeholder="Location (e.g., Moscow)"
+        placeholder="Местоположение (например, Ставрополь)"
         value={formData.location}
         onChange={handleChange}
         required
@@ -70,25 +92,25 @@ function PetForm({ fetchPets }) {
       <input
         type="text"
         name="lat"
-        placeholder="Latitude (e.g., 55.7558)"
+        placeholder="Широта (например, 44.9481)"
         value={formData.lat}
         onChange={handleChange}
       />
       <input
         type="text"
         name="lng"
-        placeholder="Longitude (e.g., 37.6173)"
+        placeholder="Долгота (например, 41.9732)"
         value={formData.lng}
         onChange={handleChange}
       />
       <input
         type="text"
         name="image"
-        placeholder="Image URL"
+        placeholder="URL изображения"
         value={formData.image}
         onChange={handleChange}
       />
-      <button type="submit">Add Pet</button>
+      <button type="submit">Добавить животное</button>
     </form>
   );
 }
