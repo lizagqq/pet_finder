@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-function PetForm({ fetchPets }) {
+function PetForm({ fetchPets, selectedCoords }) {
   const [formData, setFormData] = useState({
     type: '',
     description: '',
@@ -10,6 +10,17 @@ function PetForm({ fetchPets }) {
     image: ''
   });
   const [error, setError] = useState(null);
+
+  // Обновление координат при выборе на карте
+  useEffect(() => {
+    if (selectedCoords) {
+      setFormData((prev) => ({
+        ...prev,
+        lat: selectedCoords[0].toString(), // lat
+        lng: selectedCoords[1].toString()  // lng
+      }));
+    }
+  }, [selectedCoords]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -37,13 +48,14 @@ function PetForm({ fetchPets }) {
     setError(null);
     try {
       let payload = { ...formData };
-      if (formData.location && !formData.lat && !formData.lng) {
-        const coords = await getCoordinates(formData.location);
+      // Если координаты не выбраны на карте, используем геокодирование
+      if (!payload.lat && !payload.lng && payload.location) {
+        const coords = await getCoordinates(payload.location);
         payload.lat = coords.lat;
         payload.lng = coords.lng;
       } else {
-        payload.lat = formData.lat ? parseFloat(formData.lat) : null;
-        payload.lng = formData.lng ? parseFloat(formData.lng) : null;
+        payload.lat = payload.lat ? parseFloat(payload.lat) : null;
+        payload.lng = payload.lng ? parseFloat(payload.lng) : null;
       }
       const response = await fetch('http://localhost:5000/api/pets', {
         method: 'POST',
@@ -54,7 +66,7 @@ function PetForm({ fetchPets }) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
+      await response.json();
       fetchPets();
       setFormData({ type: '', description: '', location: '', lat: '', lng: '', image: '' });
     } catch (error) {
@@ -64,53 +76,80 @@ function PetForm({ fetchPets }) {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <input
-        type="text"
-        name="type"
-        placeholder="Тип (например, Собака, Кошка)"
-        value={formData.type}
-        onChange={handleChange}
-        required
-      />
-      <textarea
-        name="description"
-        placeholder="Описание"
-        value={formData.description}
-        onChange={handleChange}
-        required
-      />
-      <input
-        type="text"
-        name="location"
-        placeholder="Местоположение (например, Ставрополь)"
-        value={formData.location}
-        onChange={handleChange}
-        required
-      />
-      <input
-        type="text"
-        name="lat"
-        placeholder="Широта (например, 44.9481)"
-        value={formData.lat}
-        onChange={handleChange}
-      />
-      <input
-        type="text"
-        name="lng"
-        placeholder="Долгота (например, 41.9732)"
-        value={formData.lng}
-        onChange={handleChange}
-      />
-      <input
-        type="text"
-        name="image"
-        placeholder="URL изображения"
-        value={formData.image}
-        onChange={handleChange}
-      />
-      <button type="submit">Добавить животное</button>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <p className="text-red-500">{error}</p>}
+      <div>
+        <label className="block text-sm font-medium">Тип животного</label>
+        <input
+          type="text"
+          name="type"
+          placeholder="Например, Собака, Кошка"
+          value={formData.type}
+          onChange={handleChange}
+          required
+          className="w-full p-2 border rounded"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Описание</label>
+        <textarea
+          name="description"
+          placeholder="Описание животного"
+          value={formData.description}
+          onChange={handleChange}
+          required
+          className="w-full p-2 border rounded"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Местоположение</label>
+        <input
+          type="text"
+          name="location"
+          placeholder="Например, Ставрополь, ул. Ленина"
+          value={formData.location}
+          onChange={handleChange}
+          required
+          className="w-full p-2 border rounded"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Широта (выбрано на карте)</label>
+        <input
+          type="text"
+          name="lat"
+          value={formData.lat}
+          readOnly
+          className="w-full p-2 border rounded bg-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Долгота (выбрано на карте)</label>
+        <input
+          type="text"
+          name="lng"
+          value={formData.lng}
+          readOnly
+          className="w-full p-2 border rounded bg-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">URL изображения</label>
+        <input
+          type="text"
+          name="image"
+          placeholder="URL изображения"
+          value={formData.image}
+          onChange={handleChange}
+          className="w-full p-2 border rounded"
+        />
+      </div>
+      <button
+        type="submit"
+        className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+      >
+        Добавить животное
+      </button>
     </form>
   );
 }
