@@ -41,10 +41,25 @@ const Map = ({ pets }) => {
 
     return () => {
       console.log('Map.js: Очистка');
+      if (mapInstance.current) {
+        try {
+          mapInstance.current.destroy();
+          console.log('Map.js: Карта уничтожена');
+        } catch (error) {
+          console.error('Map.js: Ошибка при уничтожении карты', error);
+        }
+        mapInstance.current = null;
+      }
+      isMapInitialized.current = false;
     };
   }, []);
 
   const initializeMap = () => {
+    if (!mapRef.current || mapInstance.current) {
+      console.log('Map.js: Карта уже создана или контейнер отсутствует');
+      return;
+    }
+
     console.log('Map.js: Инициализация карты');
     mapInstance.current = new window.ymaps.Map(mapRef.current, {
       center: [44.9481, 41.9732], // Ставрополь [широта, долгота]
@@ -56,9 +71,7 @@ const Map = ({ pets }) => {
   useEffect(() => {
     if (mapInstance.current) {
       console.log('Map.js: Обновление маркеров', pets);
-      // Очищаем старые маркеры
       mapInstance.current.geoObjects.removeAll();
-      // Добавляем новые
       pets.forEach((pet) => {
         if (pet.lat && pet.lng) {
           console.log('Map.js: Маркер для', pet);
@@ -76,7 +89,8 @@ const Map = ({ pets }) => {
   return (
     <div
       ref={mapRef}
-      style={{ width: '100%', height: '400px', border: '1px solid #ccc' }}
+      id="map-page"
+      className="w-full h-96 border border-gray-300"
     />
   );
 };
