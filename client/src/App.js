@@ -7,6 +7,8 @@ import AddPetPage from './AddPetPage';
 import About from './About';
 import PetsListPage from './PetsListPage';
 import RegisterPage from './RegisterPage';
+import 'leaflet/dist/leaflet.css';
+
 
 
 const App = () => {
