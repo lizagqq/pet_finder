@@ -4,20 +4,19 @@ function PetForm({ fetchPets, selectedCoords }) {
   const [formData, setFormData] = useState({
     type: '',
     description: '',
-    location: '',
+    status: '', // Добавили статус
     lat: '',
     lng: '',
     image: ''
   });
   const [error, setError] = useState(null);
 
-  // Обновление координат при выборе на карте
   useEffect(() => {
     if (selectedCoords) {
       setFormData((prev) => ({
         ...prev,
-        lat: selectedCoords[0].toString(), // lat
-        lng: selectedCoords[1].toString()  // lng
+        lat: selectedCoords[0].toString(),
+        lng: selectedCoords[1].toString()
       }));
     }
   }, [selectedCoords]);
@@ -26,54 +25,42 @@ function PetForm({ fetchPets, selectedCoords }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const getCoordinates = async (location) => {
-    try {
-      const response = await fetch(
-        `https://geocode-maps.yandex.ru/1.x/?apikey=${process.env.REACT_APP_YANDEX_MAPS_API_KEY}&geocode=${encodeURIComponent(location)}&format=json`
-      );
-      const data = await response.json();
-      const pos = data.response.GeoObjectCollection.featureMember[0]?.GeoObject.Point.pos;
-      if (pos) {
-        const [lng, lat] = pos.split(' ').map(parseFloat);
-        return { lat, lng };
-      }
-      throw new Error('Не удалось найти координаты для этого местоположения');
-    } catch (err) {
-      throw err;
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    try {
-      let payload = { ...formData };
-      // Если координаты не выбраны на карте, используем геокодирование
-      if (!payload.lat && !payload.lng && payload.location) {
-        const coords = await getCoordinates(payload.location);
-        payload.lat = coords.lat;
-        payload.lng = coords.lng;
-      } else {
-        payload.lat = payload.lat ? parseFloat(payload.lat) : null;
-        payload.lng = payload.lng ? parseFloat(payload.lng) : null;
-      }
-      const token = localStorage.getItem('token'); 
 
-const response = await fetch('http://localhost:5000/api/pets', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`  
-  },
-  body: JSON.stringify(payload)
-});
+    // Проверяем, выбраны ли координаты
+    if (!formData.lat || !formData.lng) {
+      setError('Пожалуйста, укажите место на карте.');
+      return;
+    }
+
+    try {
+      const payload = { 
+        ...formData,
+        lat: parseFloat(formData.lat),
+        lng: parseFloat(formData.lng)
+      };
+
+      const token = localStorage.getItem('token');
+
+      const response = await fetch('http://localhost:5000/api/pets', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
+
       await response.json();
       fetchPets();
-      setFormData({ type: '', description: '', location: '', lat: '', lng: '', image: '' });
+      setFormData({ type: '', description: '', status: '', lat: '', lng: '', image: '' });
     } catch (error) {
       console.error('Ошибка добавления животного:', error);
       setError(error.message);
@@ -83,18 +70,43 @@ const response = await fetch('http://localhost:5000/api/pets', {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <p className="text-red-500">{error}</p>}
+      
+      {/* Выбор типа животного */}
       <div>
         <label className="block text-sm font-medium">Тип животного</label>
-        <input
-          type="text"
+        <select
           name="type"
-          placeholder="Например, Собака, Кошка"
           value={formData.type}
           onChange={handleChange}
           required
           className="w-full p-2 border rounded"
-        />
+        >
+          <option value="">Выберите тип</option>
+          <option value="Собака">Собака</option>
+          <option value="Кошка">Кошка</option>
+          <option value="Птица">Птица</option>
+          <option value="Грызун">Грызун</option>
+          <option value="Другое">Другое</option>
+        </select>
       </div>
+
+      {/* Выбор статуса животного */}
+      <div>
+        <label className="block text-sm font-medium">Статус</label>
+        <select
+          name="status"
+          value={formData.status}
+          onChange={handleChange}
+          required
+          className="w-full p-2 border rounded"
+        >
+          <option value="">Выберите статус</option>
+          <option value="Найдено">Найдено</option>
+          <option value="Потеряно">Потеряно</option>
+        </select>
+      </div>
+
+      {/* Описание */}
       <div>
         <label className="block text-sm font-medium">Описание</label>
         <textarea
@@ -106,18 +118,13 @@ const response = await fetch('http://localhost:5000/api/pets', {
           className="w-full p-2 border rounded"
         />
       </div>
+
+      {}
       <div>
-        <label className="block text-sm font-medium">Местоположение</label>
-        <input
-          type="text"
-          name="location"
-          placeholder="Например, Ставрополь, ул. Ленина"
-          value={formData.location}
-          onChange={handleChange}
-          required
-          className="w-full p-2 border rounded"
-        />
+        <p className="text-gray-700">📍 Укажите на карте место, где было найдено или потеряно животное.</p>
       </div>
+
+      {/* Координаты */}
       <div>
         <label className="block text-sm font-medium">Широта (выбрано на карте)</label>
         <input
@@ -128,6 +135,7 @@ const response = await fetch('http://localhost:5000/api/pets', {
           className="w-full p-2 border rounded bg-gray-100"
         />
       </div>
+
       <div>
         <label className="block text-sm font-medium">Долгота (выбрано на карте)</label>
         <input
@@ -138,17 +146,21 @@ const response = await fetch('http://localhost:5000/api/pets', {
           className="w-full p-2 border rounded bg-gray-100"
         />
       </div>
+
+      {/* Фото */}
       <div>
         <label className="block text-sm font-medium">URL изображения</label>
         <input
           type="text"
           name="image"
-          placeholder="URL изображения"
+          placeholder="Вставьте ссылку на изображение"
           value={formData.image}
           onChange={handleChange}
           className="w-full p-2 border rounded"
         />
       </div>
+
+      {/* Кнопка отправки */}
       <button
         type="submit"
         className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"

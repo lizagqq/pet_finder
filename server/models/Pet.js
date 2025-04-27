@@ -23,10 +23,10 @@ const Pet = {
 
   async create(data) {
     try {
-      const { type, description, location, lat, lng, image } = data;
+      const { type, description,  lat, lng, image } = data;
       const result = await pool.query(
-        'INSERT INTO pets (type, description, location, lat, lng, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [type, description, location, lat || null, lng || null, image || null]
+        'INSERT INTO pets (type, description,  lat, lng, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [type, description,  lat || null, lng || null, image || null]
       );
       return result.rows[0];
     } catch (err) {

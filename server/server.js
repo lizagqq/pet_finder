@@ -86,12 +86,12 @@ app.get('/api/pets', async (req, res) => {
 
 // Добавление животного
 app.post('/api/pets', authenticateToken, async (req, res) => {
-  const { type, description, location, lat, lng, image } = req.body;
+  const { type, description, lat, lng, image } = req.body;
   const userId = req.user.id;
   try {
     const result = await pool.query(
-      'INSERT INTO pets (type, description, location, lat, lng, image, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [type, description, location, lat, lng, image, userId]
+      'INSERT INTO pets (type, description, lat, lng, image, user_id) VALUES ($1, $2, $3, $4, $5, $6 ) RETURNING *',
+      [type, description, lat, lng, image, userId]
     );
     const pet = result.rows[0];
     const userResult = await pool.query('SELECT phone FROM users WHERE id = $1', [pet.user_id]);
