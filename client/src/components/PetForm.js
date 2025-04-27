@@ -57,11 +57,16 @@ function PetForm({ fetchPets, selectedCoords }) {
         payload.lat = payload.lat ? parseFloat(payload.lat) : null;
         payload.lng = payload.lng ? parseFloat(payload.lng) : null;
       }
-      const response = await fetch('http://localhost:5000/api/pets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const token = localStorage.getItem('token'); 
+
+const response = await fetch('http://localhost:5000/api/pets', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`  
+  },
+  body: JSON.stringify(payload)
+});
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);

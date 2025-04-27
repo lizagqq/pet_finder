@@ -5,6 +5,9 @@ import Home from './Home';
 import MapPage from './MapPage';
 import AddPetPage from './AddPetPage';
 import About from './About';
+import PetsListPage from './PetsListPage';
+import RegisterPage from './RegisterPage';
+
 
 const App = () => {
   return (
@@ -15,6 +18,9 @@ const App = () => {
           <Route path="/" element={<Home />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/add-pet" element={<AddPetPage />} />
+          <Route path="/pets" element={<PetsListPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
           <Route path="/about" element={<About />} />
         </Routes>
       </div>
