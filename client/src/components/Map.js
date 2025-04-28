@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-const Map = ({ pets }) => {
+const Map = ({ pets, filterStatus }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const isMapInitialized = useRef(false);
@@ -71,20 +71,28 @@ const Map = ({ pets }) => {
   useEffect(() => {
     if (mapInstance.current) {
       console.log('Map.js: Обновление маркеров', pets);
+
+      // Очистить карту перед добавлением новых маркеров
       mapInstance.current.geoObjects.removeAll();
-      pets.forEach((pet) => {
+
+      // Отфильтровать питомцев по статусу, если фильтр задан
+      const filteredPets = filterStatus
+        ? pets.filter((pet) => pet.status === filterStatus)
+        : pets;
+
+      filteredPets.forEach((pet) => {
         if (pet.lat && pet.lng) {
           console.log('Map.js: Маркер для', pet);
           const placemark = new window.ymaps.Placemark(
             [parseFloat(pet.lat), parseFloat(pet.lng)],
             { balloonContent: `${pet.type}: ${pet.description}` },
-            { preset: 'islands#blueIcon' }
+            { preset: pet.status === 'Потеряно' ? 'islands#redIcon' : 'islands#blueIcon' } // Разные иконки для разных статусов
           );
           mapInstance.current.geoObjects.add(placemark);
         }
       });
     }
-  }, [pets]);
+  }, [pets, filterStatus]);
 
   return (
     <div

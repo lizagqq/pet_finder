@@ -1,4 +1,6 @@
 {
+  "proxy": "http://localhost:5000",
+
   "name": "pet-finder-client",
   "version": "1.0.0",
   "scripts": {
@@ -31,4 +33,5 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.1"
   }
+  
 }
