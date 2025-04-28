@@ -1,52 +1,75 @@
 import React, { useState, useEffect } from 'react';
-import Map from './components/Map'; // Импортируем компонент карты
+import { useLocation } from 'react-router-dom';
+import Map from './components/Map';
 
 const MapPage = () => {
-  const [pets, setPets] = useState([]); // Состояние для всех животных
-  const [filterStatus, setFilterStatus] = useState(''); // Состояние для фильтра (Потеряно или Найдено)
+  const [pets, setPets] = useState([]);
+  const [filterStatus, setFilterStatus] = useState('');
+  const location = useLocation();
 
+  // Обработка URL-параметра filter
   useEffect(() => {
-    // Здесь ты можешь загружать список животных, например, через API
+    const queryParams = new URLSearchParams(location.search);
+    const filter = queryParams.get('filter');
+    if (filter === 'lost') setFilterStatus('Потеряно');
+    else if (filter === 'founded') setFilterStatus('Найдено');
+    else setFilterStatus('');
+    console.log('URL filter:', filter, 'filterStatus:', filterStatus);
+  }, [location.search]);
+
+  // Загрузка животных
+  useEffect(() => {
     const fetchPets = async () => {
       try {
-        const response = await fetch('/api/pets'); // API для получения всех питомцев
+        const response = await fetch('http://localhost:5000/api/pets');
         const data = await response.json();
+        console.log('Fetched pets:', data);
         setPets(data);
       } catch (error) {
         console.error('Ошибка при загрузке данных о питомцах:', error);
       }
     };
-
     fetchPets();
   }, []);
 
   const handleFilterChange = (status) => {
-    setFilterStatus(status); // Устанавливаем статус фильтра
+    setFilterStatus(status);
+    console.log('Filter changed to:', status);
   };
 
-  // Фильтрация питомцев в зависимости от статуса
+  // Фильтрация питомцев
   const filteredPets = filterStatus
     ? pets.filter((pet) => pet.status === filterStatus)
-    : pets; // Если фильтр не установлен, отображаем всех питомцев
+    : pets;
+  console.log('Filtered pets:', filteredPets);
 
   return (
-    <div>
-      <h1>Карта животных</h1>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Карта животных</h1>
 
       {/* Кнопки фильтрации */}
-      <div>
-        <button onClick={() => handleFilterChange('Потеряно')}>Потерянные животные</button>
-        <button onClick={() => handleFilterChange('Найдено')}>Найденные животные</button>
-        <button onClick={() => handleFilterChange('')}>Все животные</button> {/* Для отображения всех */}
+      <div className="mb-4 space-x-2">
+        <button
+          onClick={() => handleFilterChange('Потеряно')}
+          className={`px-4 py-2 rounded ${filterStatus === 'Потеряно' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}
+        >
+          Потерянные животные
+        </button>
+        <button
+          onClick={() => handleFilterChange('Найдено')}
+          className={`px-4 py-2 rounded ${filterStatus === 'Найдено' ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+        >
+          Найденные животные
+        </button>
+        <button
+          onClick={() => handleFilterChange('')}
+          className={`px-4 py-2 rounded ${filterStatus === '' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+        >
+          Все животные
+        </button>
       </div>
 
-      {/* Логирование для проверки, какие питомцы передаются */}
-      <div>
-        <p>Отфильтрованные питомцы:</p>
-        <pre>{JSON.stringify(filteredPets, null, 2)}</pre>
-      </div>
-
-      {/* Передаем в Map компонент отфильтрованные данные и фильтр */}
+      {/* Компонент карты */}
       <Map pets={filteredPets} filterStatus={filterStatus} />
     </div>
   );

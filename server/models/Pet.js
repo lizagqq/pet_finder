@@ -13,7 +13,11 @@ const pool = new Pool({
 const Pet = {
   async getAll() {
     try {
-      const result = await pool.query('SELECT * FROM pets');
+      const result = await pool.query(`
+        SELECT p.*, u.phone
+        FROM pets p
+        JOIN users u ON p.user_id = u.id
+      `);
       return result.rows;
     } catch (err) {
       console.error('Error in getAll:', err);
@@ -23,10 +27,13 @@ const Pet = {
 
   async create(data) {
     try {
-      const { type, description,  lat, lng, image } = data;
+      const { type, description, lat, lng, image, user_id, status } = data;
+      if (!['Потеряно', 'Найдено'].includes(status)) {
+        throw new Error('Недопустимый статус');
+      }
       const result = await pool.query(
-        'INSERT INTO pets (type, description,  lat, lng, image) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [type, description,  lat || null, lng || null, image || null]
+        'INSERT INTO pets (type, description, lat, lng, image, user_id, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *',
+        [type, description, lat || null, lng || null, image || null, user_id, status]
       );
       return result.rows[0];
     } catch (err) {

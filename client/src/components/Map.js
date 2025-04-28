@@ -62,7 +62,7 @@ const Map = ({ pets, filterStatus }) => {
 
     console.log('Map.js: Инициализация карты');
     mapInstance.current = new window.ymaps.Map(mapRef.current, {
-      center: [44.9481, 41.9732], // Ставрополь [широта, долгота]
+      center: [44.9481, 41.9732], // Ставрополь
       zoom: 12,
       controls: ['zoomControl']
     });
@@ -72,10 +72,10 @@ const Map = ({ pets, filterStatus }) => {
     if (mapInstance.current) {
       console.log('Map.js: Обновление маркеров', pets);
 
-      // Очистить карту перед добавлением новых маркеров
+      // Очистить карту
       mapInstance.current.geoObjects.removeAll();
 
-      // Отфильтровать питомцев по статусу, если фильтр задан
+      // Отфильтровать питомцев
       const filteredPets = filterStatus
         ? pets.filter((pet) => pet.status === filterStatus)
         : pets;
@@ -86,7 +86,7 @@ const Map = ({ pets, filterStatus }) => {
           const placemark = new window.ymaps.Placemark(
             [parseFloat(pet.lat), parseFloat(pet.lng)],
             { balloonContent: `${pet.type}: ${pet.description}` },
-            { preset: pet.status === 'Потеряно' ? 'islands#redIcon' : 'islands#blueIcon' } // Разные иконки для разных статусов
+            { preset: pet.status === 'Потеряно' ? 'islands#redIcon' : 'islands#blueIcon' }
           );
           mapInstance.current.geoObjects.add(placemark);
         }
