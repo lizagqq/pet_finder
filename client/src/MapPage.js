@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Map from './components/Map';
+import PetList from './components/PetList';
 
 const MapPage = () => {
   const [pets, setPets] = useState([]);
@@ -26,7 +27,7 @@ const MapPage = () => {
         console.log('Fetched pets:', data);
         setPets(data);
       } catch (error) {
-        console.error('Ошибка при загрузке данных о питомцах:', error);
+        console.error('Ошибка при загрузке данных о питомцев:', error);
       }
     };
     fetchPets();
@@ -45,7 +46,7 @@ const MapPage = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Карта животных</h1>
+      <h1 className="text-2xl font-bold mb-4">Карта и список животных</h1>
 
       {/* Кнопки фильтрации */}
       <div className="mb-4 space-x-2">
@@ -69,8 +70,16 @@ const MapPage = () => {
         </button>
       </div>
 
-      {/* Компонент карты */}
-      <Map pets={filteredPets} filterStatus={filterStatus} />
+      {/* Карта */}
+      <div className="mb-8">
+        <Map pets={filteredPets} filterStatus={filterStatus} />
+      </div>
+
+      {/* Список животных */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Список животных</h2>
+        <PetList pets={filteredPets} />
+      </div>
     </div>
   );
 };
