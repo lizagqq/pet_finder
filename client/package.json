@@ -1,5 +1,4 @@
 {
-  "proxy": "http://localhost:5000",
 
   "name": "pet-finder-client",
   "version": "1.0.0",
