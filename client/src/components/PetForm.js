@@ -10,6 +10,7 @@ function PetForm({ fetchPets, selectedCoords }) {
     image: '',
   });
   const [error, setError] = useState(null);
+  const [imageFile, setImageFile] = useState(null); // Для хранения файла изображения
 
   useEffect(() => {
     if (selectedCoords) {
@@ -24,6 +25,10 @@ function PetForm({ fetchPets, selectedCoords }) {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleImageChange = (e) => {
+    setImageFile(e.target.files[0]);
   };
 
   const handleSubmit = async (e) => {
@@ -44,10 +49,34 @@ function PetForm({ fetchPets, selectedCoords }) {
     }
 
     try {
+      let imageUrl = formData.image; // Если изображение уже введено как URL, используем его
+
+      // Если файл изображения был выбран, загружаем его в Cloudinary
+      if (imageFile) {
+        const formDataImage = new FormData();
+        formDataImage.append('image', imageFile);
+        const imageResponse = await fetch('http://localhost:5000/api/upload', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formDataImage,
+        });
+
+        if (!imageResponse.ok) {
+          const errorData = await imageResponse.json();
+          throw new Error(errorData.error || `Ошибка загрузки изображения: ${imageResponse.status}`);
+        }
+
+        const imageData = await imageResponse.json();
+        imageUrl = imageData.imageUrl; // Сохраняем URL изображения
+      }
+
       const payload = {
         ...formData,
         lat: parseFloat(formData.lat),
         lng: parseFloat(formData.lng),
+        image: imageUrl, // Отправляем ссылку на изображение
       };
 
       const response = await fetch('http://localhost:5000/api/pets', {
@@ -68,6 +97,7 @@ function PetForm({ fetchPets, selectedCoords }) {
       await response.json();
       await fetchPets();
       setFormData({ type: '', description: '', status: '', lat: '', lng: '', image: '' });
+      setImageFile(null); // Сбрасываем выбранное изображение
       alert('Животное добавлено!');
     } catch (error) {
       console.error('PetForm: Ошибка добавления животного:', error);
@@ -152,14 +182,12 @@ function PetForm({ fetchPets, selectedCoords }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">URL изображения</label>
+        <label className="block text-sm font-medium text-gray-700">Загрузите изображение</label>
         <input
-          type="text"
-          name="image"
-          placeholder="Вставьте ссылку на изображение"
-          value={formData.image}
-          onChange={handleChange}
-          className="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+          type="file"
+          accept="image/*"
+          onChange={handleImageChange}
+          className="mt-1 w-full p-3 border border-gray-300 rounded-lg"
         />
       </div>
 

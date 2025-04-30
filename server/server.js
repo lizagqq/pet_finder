@@ -5,6 +5,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config();
+const { upload } = require('./cloudinary');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,6 +19,8 @@ const pool = new Pool({
   port: process.env.DB_PORT,
   database: process.env.DB_NAME,
 });
+
+
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
@@ -38,6 +42,17 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ====== API маршруты ======
+
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  try {
+    console.log('Загружено изображение:', req.file.path);
+    res.json({ imageUrl: req.file.path });
+  } catch (err) {
+    console.error('Ошибка загрузки:', err);
+    res.status(500).json({ error: 'Ошибка при загрузке изображения' });
+  }
+});
+
 
 // Регистрация пользователя
 app.post('/api/register', async (req, res) => {

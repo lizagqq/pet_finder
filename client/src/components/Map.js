@@ -83,11 +83,24 @@ const Map = ({ pets, filterStatus }) => {
       filteredPets.forEach((pet) => {
         if (pet.lat && pet.lng) {
           console.log('Map.js: Маркер для', pet);
+
+          // Создаем стандартный маркер
           const placemark = new window.ymaps.Placemark(
             [parseFloat(pet.lat), parseFloat(pet.lng)],
-            { balloonContent: `${pet.type}: ${pet.description}` },
-            { preset: pet.status === 'Потеряно' ? 'islands#redIcon' : 'islands#blueIcon' }
+            {
+              balloonContent: `
+                <div>
+                  <h3>${pet.type}: ${pet.description}</h3>
+                  <img src="${pet.image}" alt="${pet.type}" style="width: 100px; height: auto;" />
+                </div>
+              `,
+            },
+            {
+              preset: pet.status === 'Потеряно' ? 'islands#redIcon' : 'islands#blueIcon' // Стандартный маркер
+            }
           );
+
+          // Добавляем маркер на карту
           mapInstance.current.geoObjects.add(placemark);
         }
       });
