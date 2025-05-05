@@ -6,6 +6,7 @@ import PetList from './components/PetList';
 const MapPage = () => {
   const [pets, setPets] = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
+  const [selectedPet, setSelectedPet] = useState(null);
   const location = useLocation();
 
   // Обработка URL-параметра filter
@@ -36,6 +37,10 @@ const MapPage = () => {
   const handleFilterChange = (status) => {
     setFilterStatus(status);
     console.log('Filter changed to:', status);
+  };
+
+  const handlePetClick = (pet) => {
+    setSelectedPet(pet);
   };
 
   // Фильтрация питомцев
@@ -72,13 +77,13 @@ const MapPage = () => {
 
       {/* Карта */}
       <div className="mb-8">
-        <Map pets={filteredPets} filterStatus={filterStatus} />
+        <Map pets={filteredPets} selectedPet={selectedPet} />
       </div>
 
       {/* Список животных */}
       <div>
         <h2 className="text-xl font-semibold mb-4">Список животных</h2>
-        <PetList pets={filteredPets} />
+        <PetList pets={filteredPets} onPetClick={handlePetClick} />
       </div>
     </div>
   );

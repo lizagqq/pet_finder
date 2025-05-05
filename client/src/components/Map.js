@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-const Map = ({ pets, filterStatus }) => {
+const Map = ({ pets, filterStatus, selectedPet }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const isMapInitialized = useRef(false);
@@ -84,7 +84,15 @@ const Map = ({ pets, filterStatus }) => {
         if (pet.lat && pet.lng) {
           console.log('Map.js: Маркер для', pet);
 
-          // Создаем стандартный маркер
+          // Определяем стиль маркера в зависимости от того, выбран ли питомец
+          const isSelected = selectedPet && selectedPet.id === pet.id;
+          const preset = isSelected
+            ? 'islands#yellowDotIcon' // Выделенный маркер для выбранного питомца
+            : pet.status === 'Потеряно'
+            ? 'islands#redIcon'
+            : 'islands#blueIcon';
+
+          // Создаем маркер
           const placemark = new window.ymaps.Placemark(
             [parseFloat(pet.lat), parseFloat(pet.lng)],
             {
@@ -96,7 +104,8 @@ const Map = ({ pets, filterStatus }) => {
               `,
             },
             {
-              preset: pet.status === 'Потеряно' ? 'islands#redIcon' : 'islands#blueIcon' // Стандартный маркер
+              preset: preset,
+              opacity: isSelected ? 1 : 0.5 // Делаем невыбранные маркеры полупрозрачными
             }
           );
 
@@ -104,8 +113,15 @@ const Map = ({ pets, filterStatus }) => {
           mapInstance.current.geoObjects.add(placemark);
         }
       });
+
+      // Центрирование карты на выбранном животном
+      if (selectedPet && selectedPet.lat && selectedPet.lng) {
+        mapInstance.current.setCenter([parseFloat(selectedPet.lat), parseFloat(selectedPet.lng)], 12, {
+          duration: 500 // Плавная анимация (в миллисекундах)
+        });
+      }
     }
-  }, [pets, filterStatus]);
+  }, [pets, filterStatus, selectedPet]);
 
   return (
     <div

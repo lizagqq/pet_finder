@@ -1,8 +1,15 @@
 import React from 'react';
 
-const PetCard = ({ pet }) => {
+const PetCard = ({ pet, onPetClick }) => {
+  const handleClick = () => {
+    onPetClick(pet);
+  };
+
   return (
-    <div className="border border-gray-300 rounded p-4 shadow-md hover:shadow-lg transition">
+    <div
+      className="border border-gray-300 rounded p-4 shadow-md hover:shadow-lg transition cursor-pointer"
+      onClick={handleClick}
+    >
       <h2 className="text-xl font-bold text-gray-800">{pet.type}</h2>
       <p className="text-gray-600 mt-2">{pet.description}</p>
       <p className="text-sm text-gray-500 mt-1">
