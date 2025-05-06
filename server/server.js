@@ -7,7 +7,6 @@ const path = require('path');
 require('dotenv').config();
 const { upload } = require('./cloudinary');
 
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -19,8 +18,6 @@ const pool = new Pool({
   port: process.env.DB_PORT,
   database: process.env.DB_NAME,
 });
-
-
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
@@ -41,8 +38,11 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// ====== API маршруты ======
+// Подключение маршрутов
+app.use('/api/users', require('./routes/user'));
+app.use('/api/pets', require('./routes/pets'));
 
+// Загрузка изображений
 app.post('/api/upload', upload.single('image'), (req, res) => {
   try {
     console.log('Загружено изображение:', req.file.path);
@@ -52,7 +52,6 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     res.status(500).json({ error: 'Ошибка при загрузке изображения' });
   }
 });
-
 
 // Регистрация пользователя
 app.post('/api/register', async (req, res) => {
@@ -91,21 +90,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Получение данных пользователя
-app.get('/api/users/me', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT id, name, phone, role FROM users WHERE id = $1', [req.user.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-    console.log('Server: GET /api/users/me, отправлено:', result.rows[0]);
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Server: GET /api/users/me error:', err);
-    res.status(500).json({ error: 'Ошибка сервера' });
-  }
-});
-
 // Получение всех животных
 app.get('/api/pets', async (req, res) => {
   const { status } = req.query;
@@ -126,21 +110,6 @@ app.get('/api/pets', async (req, res) => {
   } catch (error) {
     console.error('Server: Ошибка получения животных:', error);
     res.status(500).json({ error: 'Ошибка при получении списка животных' });
-  }
-});
-
-// Получение животных пользователя
-app.get('/api/pets/user', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, type, description, lat, lng, image, status, user_id, created_at FROM pets WHERE user_id = $1',
-      [req.user.id]
-    );
-    console.log('Server: GET /api/pets/user, отправлено:', result.rows.length, 'животных');
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Server: GET /api/pets/user error:', err);
-    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -194,12 +163,27 @@ app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// ====== Обработка 404 для API ======
+// Получение животных пользователя
+app.get('/api/pets/user', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, type, description, lat, lng, image, status, user_id, created_at FROM pets WHERE user_id = $1',
+      [req.user.id]
+    );
+    console.log('Server: GET /api/pets/user, отправлено:', result.rows.length, 'животных');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Server: GET /api/pets/user error:', err);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Обработка 404 для API
 app.use('/api/*', (req, res) => {
   res.status(404).json({ error: 'Маршрут не найден' });
 });
 
-// ====== Статические файлы ======
+// Статические файлы
 app.use(express.static(path.join(__dirname, '../client/build')));
 
 // Если путь не найден среди API, отправляем index.html
@@ -207,7 +191,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
 });
 
-// ====== Запуск сервера ======
+// Запуск сервера
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
