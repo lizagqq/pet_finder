@@ -140,6 +140,42 @@ app.post('/api/pets', authenticateToken, async (req, res) => {
   }
 });
 
+// Обновление животного
+app.put('/api/pets/:id', authenticateToken, async (req, res) => {
+  const petId = req.params.id;
+  const { type, description, lat, lng, image, status } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const result = await pool.query('SELECT user_id FROM pets WHERE id = $1', [petId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Животное не найдено' });
+    }
+    if (result.rows[0].user_id !== userId) {
+      return res.status(403).json({ error: 'Нет прав для редактирования этого животного' });
+    }
+
+    if (!['Потеряно', 'Найдено'].includes(status)) {
+      return res.status(400).json({ error: 'Недопустимый статус' });
+    }
+
+    const updateResult = await pool.query(
+      'UPDATE pets SET type = $1, description = $2, lat = $3, lng = $4, image = $5, status = $6, updated_at = NOW() WHERE id = $7 RETURNING *',
+      [type, description, lat, lng, image, status, petId]
+    );
+
+    const updatedPet = updateResult.rows[0];
+    const userResult = await pool.query('SELECT phone FROM users WHERE id = $1', [updatedPet.user_id]);
+    updatedPet.phone = userResult.rows[0].phone;
+
+    console.log('Server: PUT /api/pets/:id, обновлено:', updatedPet);
+    res.json(updatedPet);
+  } catch (err) {
+    console.error('Server: PUT /api/pets/:id error:', err);
+    res.status(500).json({ error: 'Ошибка сервера при обновлении животного' });
+  }
+});
+
 // Удаление животного
 app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
   try {
