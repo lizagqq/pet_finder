@@ -99,6 +99,7 @@ const Map = ({ pets, filterStatus, selectedPet }) => {
               balloonContent: `
                 <div>
                   <h3>${pet.type}: ${pet.description}</h3>
+                  <p><strong>Телефон для связи:</strong> ${pet.phone}</p>
                   <img src="${pet.image}" alt="${pet.type}" style="width: 100px; height: auto;" />
                 </div>
               `,
