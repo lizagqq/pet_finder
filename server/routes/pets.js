@@ -47,16 +47,21 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const petId = req.params.id;
     const userId = req.user.id;
+    const userRole = req.user.role;
 
-    const result = await pool.query('SELECT user_id FROM pets WHERE id = $1', [petId]);
-    if (result.rows.length === 0) {
+    const pet = await Pet.findById(petId);
+    if (!pet) {
       return res.status(404).json({ error: 'Животное не найдено' });
     }
-    if (result.rows[0].user_id !== userId) {
+
+    const isOwner = pet.user_id === userId;
+    const isAdmin = userRole === 'admin';
+
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: 'Нет прав для удаления этого животного' });
     }
 
-    await pool.query('DELETE FROM pets WHERE id = $1', [petId]);
+    await Pet.delete(petId);
     console.log('Server: DELETE /api/pets/:id, удалено:', petId);
     res.json({ message: 'Животное удалено' });
   } catch (err) {

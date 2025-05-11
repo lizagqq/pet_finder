@@ -7,7 +7,7 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
-  ssl: process.env.DB_SSL === 'true' ? true : false
+  ssl: process.env.DB_SSL === 'true' ? true : false,
 });
 
 const Pet = {
@@ -40,7 +40,36 @@ const Pet = {
       console.error('Error in create:', err);
       throw err;
     }
-  }
+  },
+
+  async findById(id) {
+    try {
+      const result = await pool.query(
+        'SELECT p.*, u.phone FROM pets p JOIN users u ON p.user_id = u.id WHERE p.id = $1',
+        [id]
+      );
+      if (result.rows.length === 0) {
+        throw new Error('Питомец не найден');
+      }
+      return result.rows[0];
+    } catch (err) {
+      console.error('Error in findById:', err);
+      throw err;
+    }
+  },
+
+  async delete(id) {
+    try {
+      const result = await pool.query('DELETE FROM pets WHERE id = $1 RETURNING *', [id]);
+      if (result.rowCount === 0) {
+        throw new Error('Питомец не найден');
+      }
+      return result.rows[0];
+    } catch (err) {
+      console.error('Error in delete:', err);
+      throw err;
+    }
+  },
 };
 
 module.exports = Pet;

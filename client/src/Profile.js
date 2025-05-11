@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
-const Profile = () => {
+const Profile = ({ user: userFromProps }) => {
   const [user, setUser] = useState(null);
   const [pets, setPets] = useState([]);
   const [error, setError] = useState(null);
@@ -13,12 +14,16 @@ const Profile = () => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     console.log('Profile: Токен:', token);
-
+  
     if (!token) {
       setError('Вы не авторизованы. Пожалуйста, войдите в аккаунт.');
       return;
     }
-
+  
+    // Используем данные из ProtectedRoute, если они есть
+    const decoded = jwtDecode(token); // Изменил jwt_decode на jwtDecode
+    console.log('Profile: Декодированный токен:', decoded);
+  
     const fetchUser = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/users/me', {
@@ -29,7 +34,8 @@ const Profile = () => {
           throw new Error(errorData.error || `Ошибка ${response.status}: Не удалось получить данные пользователя`);
         }
         const data = await response.json();
-        setUser(data);
+        // Добавляем role из токена, если его нет в ответе
+        setUser({ ...data, role: decoded.role });
         setEditedUser({ name: data.name, phone: data.phone });
         console.log('Profile: Данные пользователя:', data);
       } catch (err) {
@@ -37,7 +43,7 @@ const Profile = () => {
         setError(err.message);
       }
     };
-
+  
     const fetchPets = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/pets/user', {
@@ -55,7 +61,7 @@ const Profile = () => {
         setError(err.message);
       }
     };
-
+  
     fetchUser();
     fetchPets();
   }, []);
@@ -227,11 +233,12 @@ const Profile = () => {
               <>
                 <p className="text-gray-600"><strong>Имя:</strong> {user.name}</p>
                 <p className="text-gray-600"><strong>Телефон:</strong> {user.phone}</p>
+                <p className="text-gray-600"><strong>Роль:</strong> {user.role === 'admin' ? 'Администратор' : 'Пользователь'}</p>
                 <button onClick={handleEditProfileClick} className="mt-4 w-full py-2 px-4 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                   Редактировать профиль
                 </button>
-                <button onClick={() => { localStorage.removeItem('token'); window.location.href = '/login'; }} className="mt-2 w-full py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center">
+                <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('role'); window.location.href = '/login'; }} className="mt-2 w-full py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center">
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                   Выйти
                 </button>

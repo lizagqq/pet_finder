@@ -49,14 +49,12 @@ const Navbar = () => {
             Главная
           </Link>
           <Link to="/map" className="hover:underline">
-            Карта
+            Карта питомцев
           </Link>
           <Link to="/add-pet" className="hover:underline">
             Добавить
           </Link>
-          <Link to="/pets" className="hover:underline">
-            Все потерянные животные
-          </Link>
+          
           <Link to="/about" className="hover:underline">
             О проекте
           </Link>

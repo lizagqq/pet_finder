@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
 const RegisterPage = () => {
   const [isLoginForm, setIsLoginForm] = useState(false);
@@ -10,7 +11,6 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Получить параметр redirect из URL
   const queryParams = new URLSearchParams(location.search);
   const redirectTo = queryParams.get('redirect') || '/';
 
@@ -20,7 +20,7 @@ const RegisterPage = () => {
       const response = await fetch('http://localhost:5000/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, password })
+        body: JSON.stringify({ name, phone, password }),
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -43,17 +43,22 @@ const RegisterPage = () => {
       const response = await fetch('http://localhost:5000/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, password })
+        body: JSON.stringify({ phone, password }),
       });
       const data = await response.json();
       console.log('Login response:', data);
       if (!response.ok) {
         throw new Error(data.error || 'Ошибка входа');
       }
+  
+      // Декодируем токен для получения role
+      const decoded = jwtDecode(data.token); // Изменил jwt_decode на jwtDecode
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('userId', decoded.id);
+      localStorage.setItem('role', decoded.role || 'user');
       console.log('Stored token:', localStorage.getItem('token'));
-      console.log('Stored user:', localStorage.getItem('user'));
+      console.log('Stored userId:', localStorage.getItem('userId'));
+      console.log('Stored role:', localStorage.getItem('role'));
       setPhone('');
       setPassword('');
       setError(null);
@@ -114,6 +119,15 @@ const RegisterPage = () => {
               Зарегистрируйтесь
             </button>
           </p>
+          <button
+            onClick={() => {
+              localStorage.clear();
+              window.location.href = '/login';
+            }}
+            className="mt-4 w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Выйти
+          </button>
         </form>
       ) : (
         <form onSubmit={handleRegisterSubmit} className="space-y-4 max-w-md">
