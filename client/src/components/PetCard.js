@@ -3,7 +3,7 @@ import React from 'react';
 const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
   const userId = parseInt(localStorage.getItem('userId')) || 0;
   const isOwner = userId === pet.user_id;
-  const isAdmin = userRole === 'admin'; // Используем пропс userRole
+  const isAdmin = userRole === 'admin';
 
   // Отладочный вывод
   console.log('PetCard: userId=', userId, 'pet.user_id=', pet.user_id, 'isOwner=', isOwner);
@@ -18,12 +18,22 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow duration-200">
       <h3 className="text-lg font-medium text-gray-800">{pet.type}</h3>
       <p className="text-sm text-gray-600">
-        <strong>Статус:</strong> <span className={pet.status === 'Потеряно' ? 'text-red-500' : 'text-blue-500'}>{pet.status}</span>
+        <strong>Статус:</strong>{' '}
+        <span className={pet.status === 'Потеряно' ? 'text-red-500' : 'text-blue-500'}>{pet.status}</span>
       </p>
       <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
       <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
       {pet.phone && <p className="text-sm text-gray-600"><strong>Телефон:</strong> {pet.phone}</p>}
-      {pet.image && <img src={pet.image} alt={pet.type} className="mt-2 w-full h-32 object-cover rounded-lg" onError={(e) => (e.target.style.display = 'none')} />}
+      {pet.image && (
+        <div className="mt-2 w-full rounded-lg overflow-hidden">
+          <img
+            src={pet.image}
+            alt={pet.type}
+            className="w-full max-h-64 object-contain rounded-lg"
+            onError={(e) => (e.target.style.display = 'none')}
+          />
+        </div>
+      )}
       <button
         onClick={() => onPetClick(pet)}
         className="mt-2 w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
