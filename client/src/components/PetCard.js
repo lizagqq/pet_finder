@@ -23,6 +23,7 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
       </p>
       <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
       <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
+      <p className="text-sm text-gray-600"><strong>Кто дал объявление:</strong> {pet.name}</p>
       {pet.phone && <p className="text-sm text-gray-600"><strong>Телефон:</strong> {pet.phone}</p>}
       {pet.image && (
         <div className="mt-2 w-full rounded-lg overflow-hidden">

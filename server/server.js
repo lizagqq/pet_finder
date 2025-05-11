@@ -80,7 +80,6 @@ app.post('/api/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) return res.status(400).json({ error: 'Неверный пароль' });
 
-    // Устанавливаем role по умолчанию, если он отсутствует
     const userRole = user.role || 'user';
     const token = jwt.sign({ id: user.id, phone: user.phone, role: userRole }, JWT_SECRET, { expiresIn: '1h' });
     console.log('Server: POST /api/login, токен выдан:', user.id, 'role:', userRole);
@@ -95,7 +94,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/pets', async (req, res) => {
   const { status } = req.query;
   let query = `
-    SELECT p.*, u.phone
+    SELECT p.*, u.name, u.phone
     FROM pets p
     JOIN users u ON p.user_id = u.id
   `;
@@ -130,7 +129,8 @@ app.post('/api/pets', authenticateToken, async (req, res) => {
     );
 
     const pet = petResult.rows[0];
-    const userResult = await pool.query('SELECT phone FROM users WHERE id = $1', [pet.user_id]);
+    const userResult = await pool.query('SELECT name, phone FROM users WHERE id = $1', [pet.user_id]);
+    pet.name = userResult.rows[0].name;
     pet.phone = userResult.rows[0].phone;
 
     console.log('Server: POST /api/pets, добавлено:', pet);
@@ -166,7 +166,8 @@ app.put('/api/pets/:id', authenticateToken, async (req, res) => {
     );
 
     const updatedPet = updateResult.rows[0];
-    const userResult = await pool.query('SELECT phone FROM users WHERE id = $1', [updatedPet.user_id]);
+    const userResult = await pool.query('SELECT name, phone FROM users WHERE id = $1', [updatedPet.user_id]);
+    updatedPet.name = userResult.rows[0].name;
     updatedPet.phone = userResult.rows[0].phone;
 
     console.log('Server: PUT /api/pets/:id, обновлено:', updatedPet);
@@ -189,7 +190,6 @@ app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Животное не найдено' });
     }
 
-    // Проверка: администратор может удалять любую запись, пользователь — только свою
     if (userRole !== 'admin' && result.rows[0].user_id !== userId) {
       return res.status(403).json({ error: 'Нет прав для удаления этого животного' });
     }
@@ -207,7 +207,7 @@ app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
 app.get('/api/pets/user', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, type, description, lat, lng, image, status, user_id, created_at FROM pets WHERE user_id = $1',
+      'SELECT p.*, u.name, u.phone FROM pets p JOIN users u ON p.user_id = u.id WHERE p.user_id = $1',
       [req.user.id]
     );
     console.log('Server: GET /api/pets/user, отправлено:', result.rows.length, 'животных');

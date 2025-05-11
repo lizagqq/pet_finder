@@ -20,8 +20,7 @@ const Profile = ({ user: userFromProps }) => {
       return;
     }
   
-    // Используем данные из ProtectedRoute, если они есть
-    const decoded = jwtDecode(token); // Изменил jwt_decode на jwtDecode
+    const decoded = jwtDecode(token);
     console.log('Profile: Декодированный токен:', decoded);
   
     const fetchUser = async () => {
@@ -34,7 +33,6 @@ const Profile = ({ user: userFromProps }) => {
           throw new Error(errorData.error || `Ошибка ${response.status}: Не удалось получить данные пользователя`);
         }
         const data = await response.json();
-        // Добавляем role из токена, если его нет в ответе
         setUser({ ...data, role: decoded.role });
         setEditedUser({ name: data.name, phone: data.phone });
         console.log('Profile: Данные пользователя:', data);
@@ -311,7 +309,14 @@ const Profile = ({ user: userFromProps }) => {
                         <p className="text-sm text-gray-600"><strong>Статус:</strong> <span className={pet.status === 'Потеряно' ? 'text-red-500' : 'text-blue-500'}>{pet.status}</span></p>
                         <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
                         <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
-                        {pet.image && <img src={pet.image} alt={pet.type} className="mt-2 w-full h-32 object-cover rounded-lg" onError={(e) => (e.target.style.display = 'none')} />}
+                        {pet.image && (
+                          <img
+                            src={pet.image}
+                            alt={pet.type}
+                            className="mt-2 w-full max-h-64 object-contain rounded-lg"
+                            onError={(e) => (e.target.style.display = 'none')}
+                          />
+                        )}
                         <div className="mt-2 flex gap-2">
                           <button onClick={() => handleEditPetClick(pet)} className="flex-1 py-2 px-4 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center">
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
