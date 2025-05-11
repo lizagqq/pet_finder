@@ -39,43 +39,42 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-blue-500 text-white p-4">
+    <nav className="bg-gradient-to-r from-yellow-600 to-yellow-200 text-white p-4 shadow-lg fixed w-full z-10 backdrop-blur-md border-b border-yellow-300">
       <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-xl font-bold">
-          Pet Finder
+        <Link to="/" className="text-2xl font-display font-bold text-white flex items-center">
+          <span role="img" aria-label="paw">🐾</span> Pet Finder
         </Link>
-        <div className="flex items-center space-x-4">
-          <Link to="/" className="hover:underline">
-            Главная
+        <div className="flex items-center space-x-6">
+          <Link to="/" className="hover:text-yellow-200 transition-colors flex items-center">
+            <span role="img" aria-label="home">🏠</span> Главная
           </Link>
-          <Link to="/map" className="hover:underline">
-            Карта питомцев
+          <Link to="/map" className="hover:text-yellow-200 transition-colors flex items-center">
+            <span role="img" aria-label="map">🗺️</span> Карта питомцев
           </Link>
-          <Link to="/add-pet" className="hover:underline">
-            Добавить
+          <Link to="/add-pet" className="hover:text-yellow-200 transition-colors flex items-center">
+            <span role="img" aria-label="plus">➕</span> Добавить
           </Link>
-          
-          <Link to="/about" className="hover:underline">
-            О проекте
+          <Link to="/about" className="hover:text-yellow-200 transition-colors flex items-center">
+            <span role="img" aria-label="info">ℹ️</span> О проекте
           </Link>
           {isAuthenticated && (
-            <Link to="/profile" className="hover:underline">
-              Профиль
+            <Link to="/profile" className="hover:text-yellow-200 transition-colors flex items-center">
+              <span role="img" aria-label="user">👤</span> Профиль
             </Link>
           )}
           {isAuthenticated ? (
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              className="px-4 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md flex items-center"
             >
-              Выход
+              <span role="img" aria-label="logout">🚪</span> Выход
             </button>
           ) : (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-white text-blue-600 rounded-full hover:bg-gray-200 transition-colors shadow-md flex items-center"
             >
-              Вход
+              <span role="img" aria-label="login">🔑</span> Вход
             </button>
           )}
         </div>
@@ -84,17 +83,17 @@ const Navbar = () => {
       <Modal
         isOpen={isModalOpen}
         onRequestClose={() => setIsModalOpen(false)}
-        className="bg-white p-6 rounded-lg shadow-lg max-w-md mx-auto mt-20"
+        className="bg-white p-6 rounded-xl shadow-lg max-w-md mx-auto mt-20 border border-gray-200"
         overlayClassName="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
       >
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">Вход</h2>
+        <h2 className="text-2xl font-display font-bold mb-6 text-gray-800">Вход</h2>
         <form
           onSubmit={(e) => {
             const phone = e.target.phone.value;
             const password = e.target.password.value;
             handleLoginSubmit(e, phone, password);
           }}
-          className="space-y-4"
+          className="space-y-6"
         >
           <div>
             <label className="block text-sm font-medium text-gray-700">Номер телефона:</label>
@@ -117,7 +116,7 @@ const Navbar = () => {
           </div>
           <button
             type="submit"
-            className="w-full py-3 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="w-full py-3 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md"
           >
             Войти
           </button>
@@ -134,7 +133,7 @@ const Navbar = () => {
         </p>
         <button
           onClick={() => setIsModalOpen(false)}
-          className="mt-4 w-full py-3 px-4 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+          className="mt-4 w-full py-3 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
         >
           Закрыть
         </button>

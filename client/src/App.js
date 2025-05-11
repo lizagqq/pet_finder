@@ -9,7 +9,6 @@ import PetsListPage from './PetsListPage';
 import RegisterPage from './RegisterPage';
 import Profile from './Profile';
 
-// Компонент для защиты маршрутов
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   console.log('ProtectedRoute: Токен:', token);
@@ -20,33 +19,35 @@ const App = () => {
   console.log('App: Маршруты инициализированы');
   return (
     <Router>
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/map" element={<MapPage />} />
-          <Route
-            path="/add-pet"
-            element={
-              <ProtectedRoute>
-                <AddPetPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/pets" element={<PetsListPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/login" element={<RegisterPage />} />
-          <Route path="/about" element={<About />} />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<div className="container mx-auto p-4"><h1 className="text-2xl font-bold">404 - Страница не найдена</h1></div>} />
-        </Routes>
+        <div className="pt-16"> {/* Отступ сверху, чтобы избежать перекрытия */}
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/map" element={<MapPage />} />
+            <Route
+              path="/add-pet"
+              element={
+                <ProtectedRoute>
+                  <AddPetPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/pets" element={<PetsListPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/login" element={<RegisterPage />} />
+            <Route path="/about" element={<About />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<div className="container mx-auto p-4"><h1 className="text-2xl font-bold text-gray-800">404 - Страница не найдена</h1></div>} />
+          </Routes>
+        </div>
       </div>
     </Router>
   );
