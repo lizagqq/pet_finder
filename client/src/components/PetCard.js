@@ -22,6 +22,20 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
     }
   };
 
+  
+
+  // Функция для форматирования даты на русском
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow duration-200">
       <h3 className="text-lg font-medium text-gray-800">{pet.type}</h3>
@@ -35,14 +49,15 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
         <strong>Кто дал объявление:</strong> {pet.name || 'Неизвестный пользователь'}
       </p>
       {pet.phone && <p className="text-sm text-gray-600"><strong>Телефон:</strong> {pet.phone}</p>}
-      <p className="text-sm text-gray-600">
-        <strong>Статус модерации:</strong> {pet.status_moderation || 'pending'}
-      </p>
+      
       {pet.moderation_comment && (
         <p className="text-sm text-gray-600">
           <strong>Комментарий модератора:</strong> {pet.moderation_comment}
         </p>
       )}
+      <p className="text-sm text-gray-600">
+        <strong>Дата публикации:</strong> {formatDate(pet.created_at)}
+      </p>
       {pet.image && (
         <div className="mt-2 w-full rounded-lg overflow-hidden">
           <img

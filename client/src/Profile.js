@@ -11,7 +11,7 @@ const Profile = ({ user: userFromProps }) => {
   const [editedUser, setEditedUser] = useState({ name: '', phone: '' });
   const [editingPet, setEditingPet] = useState(null);
   const [editedPet, setEditedPet] = useState({ type: '', description: '', lat: '', lng: '', image: '', status: '' });
-  const [notification, setNotification] = useState(null); // Для уведомлений
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -57,7 +57,6 @@ const Profile = ({ user: userFromProps }) => {
         setPets(data);
         console.log('Profile: Животные пользователя:', data);
 
-        // Проверка изменений статуса для уведомлений
         const updatedPets = data.filter(pet => pet.status_moderation && pet.status_moderation !== 'pending');
         if (updatedPets.length > 0) {
           updatedPets.forEach(pet => {
@@ -282,7 +281,7 @@ const Profile = ({ user: userFromProps }) => {
       {notification && (
         <div className={`mb-4 p-4 rounded-lg ${notification.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} flex justify-between items-center`}>
           <span>{notification.message}</span>
-          <button onClick={dismissNotification} className="ml-4 text-lg">&times;</button>
+          <button onClick={dismissNotification} className="ml-4 text-lg">×</button>
         </div>
       )}
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Личный кабинет</h1>
@@ -392,9 +391,10 @@ const Profile = ({ user: userFromProps }) => {
                         <>
                           <h3 className="text-lg font-medium text-gray-800">{pet.type}</h3>
                           <p className="text-sm text-gray-600"><strong>Статус:</strong> <span className={pet.status === 'Потеряно' ? 'text-red-500' : 'text-blue-500'}>{pet.status}</span></p>
+                          <p className="text-sm text-gray-600"><strong>Дата публикации:</strong> {formatDate(pet.created_at)} </p>
                           <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
                           <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
-                          <p className="text-sm text-gray-600"><strong>Статус модерации:</strong> {pet.status_moderation || 'pending'}</p>
+                          <p className="text-sm text-gray-600"><strong>Статус модерации:</strong> {getModerationStatusInRussian(pet.status_moderation)}</p>
                           {pet.image && (
                             <img
                               src={pet.image}
@@ -435,7 +435,7 @@ const Profile = ({ user: userFromProps }) => {
                       <p className="text-sm text-gray-600"><strong>Статус:</strong> <span className={pet.status === 'Потеряно' ? 'text-red-500' : 'text-blue-500'}>{pet.status}</span></p>
                       <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
                       <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
-                      <p className="text-sm text-gray-600"><strong>Статус модерации:</strong> {pet.status_moderation || 'pending'}</p>
+                      <p className="text-sm text-gray-600"><strong>Статус модерации:</strong> {getModerationStatusInRussian(pet.status_moderation)}</p>
                       {pet.image && (
                         <img
                           src={pet.image}
@@ -479,5 +479,31 @@ const Profile = ({ user: userFromProps }) => {
     </div>
   );
 };
+
+// Функция для перевода статуса модерации на русский
+const getModerationStatusInRussian = (status) => {
+  switch (status) {
+    case 'pending':
+      return 'на модерации';
+    case 'approved':
+      return 'опубликовано';
+    case 'rejected':
+      return 'отклонено';
+    default:
+      return status || 'на модерации';
+  }
+};
+
+ // Функция для форматирования даты на русском
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
 export default Profile;
