@@ -5,26 +5,63 @@ const PetsListPage = () => {
   const [pets, setPets] = useState([]);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
-    const fetchPets = async () => {
+    const fetchUserAndPets = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/pets');
-        if (!response.ok) {
-          throw new Error('Ошибка загрузки списка животных');
-        }
-        const data = await response.json();
-        console.log('PetsListPage.js: Загружены животные', data);
-        setPets(data);
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Токен отсутствует. Пожалуйста, войдите в систему.');
+
+        // Получение данных пользователя для определения роли
+        const userResponse = await fetch('http://localhost:5000/api/users/me', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!userResponse.ok) throw new Error('Не удалось загрузить данные пользователя');
+        const userData = await userResponse.json();
+        setUserRole(userData.role);
+
+        // Получение списка объявлений
+        const endpoint = userRole === 'admin' ? '/api/pets/admin' : '/api/pets';
+        const petsResponse = await fetch(`http://localhost:5000${endpoint}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!petsResponse.ok) throw new Error('Не удалось загрузить объявления');
+        const petsData = await petsResponse.json();
+        console.log('PetsListPage.js: Загружены животные', petsData);
+        setPets(petsData);
       } catch (error) {
         console.error('PetsListPage.js: Ошибка:', error);
         setError(error.message);
       }
     };
-    fetchPets();
-  }, []);
 
-  const filteredPets = filter === 'all' ? pets : pets.filter(pet => pet.type.toLowerCase() === filter);
+    fetchUserAndPets();
+  }, [userRole]); // Перезапуск при изменении роли
+
+  const filteredPets = filter === 'all' ? pets : pets.filter(pet => pet.type.toLowerCase() === filter.toLowerCase());
+
+  const handleDelete = async (petId) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`http://localhost:5000/api/pets/${petId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Не удалось удалить объявление');
+      setPets(pets.filter(pet => pet.id !== petId));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleUpdatePet = (updatedPet) => {
+    setPets(pets.map(pet => (pet.id === updatedPet.id ? updatedPet : pet)));
+  };
+
+  const handlePetClick = (pet) => {
+    console.log('Показать на карте:', pet);
+  };
 
   return (
     <div className="container mx-auto p-4">
@@ -48,7 +85,13 @@ const PetsListPage = () => {
       {filteredPets.length === 0 && !error ? (
         <p>Нет зарегистрированных животных.</p>
       ) : (
-        <PetList pets={filteredPets} />
+        <PetList
+          pets={filteredPets}
+          onPetClick={handlePetClick}
+          userRole={userRole}
+          onDelete={handleDelete}
+          onUpdatePet={handleUpdatePet}
+        />
       )}
     </div>
   );

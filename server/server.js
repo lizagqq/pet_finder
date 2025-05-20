@@ -94,13 +94,15 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/pets', async (req, res) => {
   const { status } = req.query;
   let query = `
-    SELECT p.*, u.name, u.phone
+    SELECT p.*, u.name, u.phone, pms.status AS status_moderation, pms.comment AS moderation_comment
     FROM pets p
     JOIN users u ON p.user_id = u.id
+    LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
+    WHERE pms.status = 'approved' OR pms.status IS NULL
   `;
 
   if (status) {
-    query += ` WHERE p.status = $1`;
+    query += ` AND p.status = $1`;
   }
 
   try {
@@ -110,6 +112,54 @@ app.get('/api/pets', async (req, res) => {
   } catch (error) {
     console.error('Server: Ошибка получения животных:', error);
     res.status(500).json({ error: 'Ошибка при получении списка животных' });
+  }
+});
+
+// Получение всех животных для администратора (включая pending)
+app.get('/api/pets/admin', authenticateToken, async (req, res) => {
+  const { status } = req.query;
+  let query = `
+    SELECT p.*, u.name, u.phone, pms.status AS status_moderation, pms.comment AS moderation_comment
+    FROM pets p
+    JOIN users u ON p.user_id = u.id
+    LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
+  `;
+
+  if (status) {
+    query += ` WHERE p.status = $1`;
+  }
+
+  try {
+    const result = status ? await pool.query(query, [status]) : await pool.query(query);
+    console.log('Server: GET /api/pets/admin, отправлено:', result.rows.length, 'животных');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Server: Ошибка получения животных для админа:', error);
+    res.status(500).json({ error: 'Ошибка при получении списка животных' });
+  }
+});
+
+// Получение животных на модерации (pending) для администратора
+app.get('/api/pets/admin/pending', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Доступ только для администраторов' });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT p.*, u.name, u.phone, pms.status AS status_moderation, pms.comment AS moderation_comment
+      FROM pets p
+      JOIN users u ON p.user_id = u.id
+      LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
+      WHERE pms.status = 'pending'
+      `
+    );
+    console.log('Server: GET /api/pets/admin/pending, отправлено:', result.rows.length, 'животных на модерации');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Server: Ошибка получения животных на модерации:', error);
+    res.status(500).json({ error: 'Ошибка при получении списка животных на модерации' });
   }
 });
 
@@ -129,15 +179,25 @@ app.post('/api/pets', authenticateToken, async (req, res) => {
     );
 
     const pet = petResult.rows[0];
+    const moderationResult = await pool.query(
+      'INSERT INTO pet_moderation_status (pet_id, status) VALUES ($1, $2) RETURNING *',
+      [pet.id, 'pending']
+    );
+
+    if (moderationResult.rows.length === 0) {
+      throw new Error('Не удалось создать запись модерации');
+    }
+
     const userResult = await pool.query('SELECT name, phone FROM users WHERE id = $1', [pet.user_id]);
     pet.name = userResult.rows[0].name;
     pet.phone = userResult.rows[0].phone;
+    pet.status_moderation = moderationResult.rows[0].status;
 
-    console.log('Server: POST /api/pets, добавлено:', pet);
+    console.log('Server: POST /api/pets, добавлено (на модерации):', pet);
     res.json(pet);
   } catch (error) {
     console.error('Server: Ошибка добавления животного:', error);
-    res.status(500).json({ error: 'Ошибка при добавлении животного' });
+    res.status(500).json({ error: 'Ошибка при добавлении животного: ' + error.message });
   }
 });
 
@@ -152,7 +212,7 @@ app.put('/api/pets/:id', authenticateToken, async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Животное не найдено' });
     }
-    if (result.rows[0].user_id !== userId) {
+    if (result.rows[0].user_id !== userId && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Нет прав для редактирования этого животного' });
     }
 
@@ -167,8 +227,11 @@ app.put('/api/pets/:id', authenticateToken, async (req, res) => {
 
     const updatedPet = updateResult.rows[0];
     const userResult = await pool.query('SELECT name, phone FROM users WHERE id = $1', [updatedPet.user_id]);
+    const moderationResult = await pool.query('SELECT status, comment FROM pet_moderation_status WHERE pet_id = $1', [petId]);
     updatedPet.name = userResult.rows[0].name;
     updatedPet.phone = userResult.rows[0].phone;
+    updatedPet.status_moderation = moderationResult.rows[0]?.status || 'pending';
+    updatedPet.moderation_comment = moderationResult.rows[0]?.comment || null;
 
     console.log('Server: PUT /api/pets/:id, обновлено:', updatedPet);
     res.json(updatedPet);
@@ -207,7 +270,11 @@ app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
 app.get('/api/pets/user', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT p.*, u.name, u.phone FROM pets p JOIN users u ON p.user_id = u.id WHERE p.user_id = $1',
+      'SELECT p.*, u.name, u.phone, pms.status AS status_moderation, pms.comment AS moderation_comment ' +
+      'FROM pets p ' +
+      'JOIN users u ON p.user_id = u.id ' +
+      'LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id ' +
+      'WHERE p.user_id = $1',
       [req.user.id]
     );
     console.log('Server: GET /api/pets/user, отправлено:', result.rows.length, 'животных');
@@ -215,6 +282,55 @@ app.get('/api/pets/user', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Server: GET /api/pets/user error:', err);
     res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Модерация объявлений
+app.put('/api/pets/moderate/:id', authenticateToken, async (req, res) => {
+  const petId = req.params.id;
+  const { status_moderation, comment } = req.body;
+
+  if (!['approved', 'rejected'].includes(status_moderation)) {
+    return res.status(400).json({ error: 'Недопустимый статус модерации' });
+  }
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Доступ только для администраторов' });
+  }
+
+  try {
+    const petResult = await pool.query('SELECT id FROM pets WHERE id = $1', [petId]);
+    if (petResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Животное не найдено' });
+    }
+
+    const moderationResult = await pool.query(
+      'UPDATE pet_moderation_status SET status = $1, comment = $2, moderated_at = NOW() WHERE pet_id = $3 RETURNING *',
+      [status_moderation, comment || null, petId]
+    );
+
+    if (moderationResult.rows.length === 0) {
+      await pool.query(
+        'INSERT INTO pet_moderation_status (pet_id, status, comment, moderated_at) VALUES ($1, $2, $3, NOW())',
+        [petId, status_moderation, comment || null]
+      );
+    }
+
+    const updatedPetResult = await pool.query(
+      'SELECT p.*, u.name, u.phone, pms.status AS status_moderation, pms.comment AS moderation_comment ' +
+      'FROM pets p ' +
+      'JOIN users u ON p.user_id = u.id ' +
+      'LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id ' +
+      'WHERE p.id = $1',
+      [petId]
+    );
+
+    const updatedPet = updatedPetResult.rows[0];
+    console.log('Server: PUT /api/pets/moderate/:id, модерация:', updatedPet);
+    res.json(updatedPet);
+  } catch (err) {
+    console.error('Server: PUT /api/pets/moderate/:id error:', err);
+    res.status(500).json({ error: 'Ошибка сервера при модерации' });
   }
 });
 

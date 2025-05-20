@@ -1,6 +1,6 @@
 import React from 'react';
 
-const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
+const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
   const userId = parseInt(localStorage.getItem('userId')) || 0;
   const isOwner = userId === pet.user_id;
   const isAdmin = userRole === 'admin';
@@ -8,10 +8,18 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
   // Отладочный вывод
   console.log('PetCard: userId=', userId, 'pet.user_id=', pet.user_id, 'isOwner=', isOwner);
   console.log('PetCard: userRole=', userRole, 'isAdmin=', isAdmin);
+  console.log('PetCard: pet=', pet);
 
   const handleDelete = () => {
     if (!window.confirm('Вы уверены, что хотите удалить это животное?')) return;
     onDelete(pet.id);
+  };
+
+  const handleModerate = (status) => {
+    const comment = status === 'rejected' ? prompt('Введите причину отклонения (опционально):') : null;
+    if (window.confirm(`Утвердить объявление как ${status}?`)) {
+      onModerate(pet.id, { status_moderation: status, comment });
+    }
   };
 
   return (
@@ -23,8 +31,18 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
       </p>
       <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
       <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
-      <p className="text-sm text-gray-600"><strong>Кто дал объявление:</strong> {pet.name}</p>
+      <p className="text-sm text-gray-600">
+        <strong>Кто дал объявление:</strong> {pet.name || 'Неизвестный пользователь'}
+      </p>
       {pet.phone && <p className="text-sm text-gray-600"><strong>Телефон:</strong> {pet.phone}</p>}
+      <p className="text-sm text-gray-600">
+        <strong>Статус модерации:</strong> {pet.status_moderation || 'pending'}
+      </p>
+      {pet.moderation_comment && (
+        <p className="text-sm text-gray-600">
+          <strong>Комментарий модератора:</strong> {pet.moderation_comment}
+        </p>
+      )}
       {pet.image && (
         <div className="mt-2 w-full rounded-lg overflow-hidden">
           <img
@@ -41,6 +59,22 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
       >
         Показать на карте
       </button>
+      {isAdmin && pet.status_moderation !== 'approved' && (
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={() => handleModerate('approved')}
+            className="flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+          >
+            Утвердить
+          </button>
+          <button
+            onClick={() => handleModerate('rejected')}
+            className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Отклонить
+          </button>
+        </div>
+      )}
       {isAdmin && (
         <button
           onClick={handleDelete}
@@ -54,7 +88,6 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole }) => {
           Удалить
         </button>
       )}
-      
     </div>
   );
 };
