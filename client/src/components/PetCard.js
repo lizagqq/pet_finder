@@ -1,18 +1,45 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
   const userId = parseInt(localStorage.getItem('userId')) || 0;
   const isOwner = userId === pet.user_id;
   const isAdmin = userRole === 'admin';
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
 
   // Отладочный вывод
   console.log('PetCard: userId=', userId, 'pet.user_id=', pet.user_id, 'isOwner=', isOwner);
   console.log('PetCard: userRole=', userRole, 'isAdmin=', isAdmin);
   console.log('PetCard: pet=', pet);
 
-  const handleDelete = () => {
-    if (!window.confirm('Вы уверены, что хотите удалить это животное?')) return;
-    onDelete(pet.id);
+  const handleDeleteClick = () => {
+    if (isAdmin) {
+      // Для админов удаляем сразу без причины
+      onDelete(pet.id, null);
+    } else {
+      // Для обычных пользователей показываем модальное окно
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteReason) {
+      alert('Пожалуйста, выберите причину удаления.');
+      return;
+    }
+
+    try {
+      await onDelete(pet.id, deleteReason); // Передаём причину в onDelete
+      setShowDeleteModal(false);
+      setDeleteReason('');
+    } catch (err) {
+      console.error('PetCard: Ошибка удаления:', err);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setDeleteReason('');
   };
 
   const handleModerate = (status) => {
@@ -22,9 +49,19 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
     }
   };
 
-  
+  const getModerationStatusInRussian = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'на модерации';
+      case 'approved':
+        return 'опубликовано';
+      case 'rejected':
+        return 'отклонено';
+      default:
+        return status || 'на модерации';
+    }
+  };
 
-  // Функция для форматирования даты на русском
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('ru-RU', {
@@ -90,9 +127,9 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
           </button>
         </div>
       )}
-      {isAdmin && (
+      {(isAdmin || isOwner) && (
         <button
-          onClick={handleDelete}
+          onClick={handleDeleteClick}
           className={`mt-2 w-full py-2 px-4 text-white rounded-lg hover:bg-opacity-80 transition-colors flex items-center justify-center ${
             isAdmin && !isOwner ? 'bg-purple-500 hover:bg-purple-600' : 'bg-red-500 hover:bg-red-600'
           }`}
@@ -102,6 +139,39 @@ const PetCard = ({ pet, onPetClick, onDelete, userRole, onModerate }) => {
           </svg>
           Удалить
         </button>
+      )}
+
+      {/* Модальное окно для выбора причины удаления (только для обычных пользователей) */}
+      {showDeleteModal && !isAdmin && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-lg font-semibold mb-4">Почему вы хотите удалить объявление?</h2>
+            <select
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              className="w-full p-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Выберите причину</option>
+              <option value="Животное нашлось">Животное нашлось</option>
+              <option value="Животное так и не нашлось, я потерял надежду">Животное так и не нашлось, я потерял надежду</option>
+              <option value="Другое">Другое</option>
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDeleteConfirm}
+                className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Удалить
+              </button>
+              <button
+                onClick={handleDeleteCancel}
+                className="flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

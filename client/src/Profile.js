@@ -12,6 +12,9 @@ const Profile = ({ user: userFromProps }) => {
   const [editingPet, setEditingPet] = useState(null);
   const [editedPet, setEditedPet] = useState({ type: '', description: '', lat: '', lng: '', image: '', status: '' });
   const [notification, setNotification] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [petToDelete, setPetToDelete] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -175,33 +178,57 @@ const Profile = ({ user: userFromProps }) => {
     setEditedPet(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleDelete = async (petId) => {
+  const handleDeleteClick = (petId) => {
+    if (user.role === 'admin') {
+      // Для админа удаляем сразу без причины
+      handleDeleteConfirm(petId);
+    } else {
+      // Для обычного пользователя показываем модальное окно
+      setPetToDelete(petId);
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleDeleteConfirm = async (petId) => {
+    const idToDelete = petId || petToDelete;
     const token = localStorage.getItem('token');
     if (!token) {
       setError('Вы не авторизованы.');
       return;
     }
 
-    if (!window.confirm('Вы уверены, что хотите удалить это животное?')) return;
-
     try {
-      const response = await fetch(`http://localhost:5000/api/pets/${petId}`, {
+      if (user.role !== 'admin' && !deleteReason) {
+        alert('Пожалуйста, выберите причину удаления.');
+        return;
+      }
+      const response = await fetch(`http://localhost:5000/api/pets/${idToDelete}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: user.role === 'admin' ? null : deleteReason }),
       });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `Ошибка ${response.status}: Не удалось удалить животное`);
       }
-      setPets(pets.filter(pet => pet.id !== petId));
-      setPendingPets(pendingPets.filter(pet => pet.id !== petId));
-      console.log('Profile: Животное удалено:', petId);
+      setPets(pets.filter(pet => pet.id !== idToDelete));
+      setPendingPets(pendingPets.filter(pet => pet.id !== idToDelete));
+      console.log('Profile: Животное удалено:', idToDelete);
       alert('Животное удалено!');
       setError(null);
+      setShowDeleteModal(false);
+      setDeleteReason('');
+      setPetToDelete(null);
     } catch (err) {
       console.error('Profile: Ошибка удаления:', err);
       setError(err.message);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setDeleteReason('');
+    setPetToDelete(null);
   };
 
   const handleModerate = async (petId, status) => {
@@ -391,7 +418,7 @@ const Profile = ({ user: userFromProps }) => {
                         <>
                           <h3 className="text-lg font-medium text-gray-800">{pet.type}</h3>
                           <p className="text-sm text-gray-600"><strong>Статус:</strong> <span className={pet.status === 'Потеряно' ? 'text-red-500' : 'text-blue-500'}>{pet.status}</span></p>
-                          <p className="text-sm text-gray-600"><strong>Дата публикации:</strong> {formatDate(pet.created_at)} </p>
+                          <p className="text-sm text-gray-600"><strong>Дата публикации:</strong> {formatDate(pet.created_at)}</p>
                           <p className="text-sm text-gray-600"><strong>Описание:</strong> {pet.description}</p>
                           <p className="text-sm text-gray-600"><strong>Координаты:</strong> {pet.lat}, {pet.lng}</p>
                           <p className="text-sm text-gray-600"><strong>Статус модерации:</strong> {getModerationStatusInRussian(pet.status_moderation)}</p>
@@ -408,7 +435,7 @@ const Profile = ({ user: userFromProps }) => {
                               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                               Редактировать
                             </button>
-                            <button onClick={() => handleDelete(pet.id)} className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center">
+                            <button onClick={() => handleDeleteClick(pet.id)} className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center">
                               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5-4h4M3 7h18"></path></svg>
                               Удалить
                             </button>
@@ -447,15 +474,13 @@ const Profile = ({ user: userFromProps }) => {
                       <div className="mt-2 flex gap-2">
                         <button
                           onClick={() => handleModerate(pet.id, 'approved')}
-                          className="flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center"
-                        >
+                          className="flex-1 py-2 px-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center">
                           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                           Утвердить
                         </button>
                         <button
                           onClick={() => handleModerate(pet.id, 'rejected')}
-                          className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
-                        >
+                          className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center">
                           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                           Отклонить
                         </button>
@@ -463,7 +488,6 @@ const Profile = ({ user: userFromProps }) => {
                           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                           Редактировать
                         </button>
-                        
                       </div>
                     </div>
                   ))}
@@ -473,6 +497,39 @@ const Profile = ({ user: userFromProps }) => {
           )}
         </div>
       </div>
+
+      {/* Модальное окно для выбора причины удаления */}
+      {showDeleteModal && user.role !== 'admin' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+         <div className="bg-white rounded-lg p-6 w-full max-w-lg"> {/* Изменено с max-w-md на max-w-lg */}
+            <h2 className="text-lg font-semibold mb-4">Почему вы хотите удалить объявление?</h2>
+            <select
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              className="w-full p-2 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Выберите причину</option>
+              <option value="Животное нашлось">Животное нашлось</option>
+              <option value="Животное так и не нашлось, я потерял надежду">Животное так и не нашлось, я потерял надежду</option>
+              <option value="Другое">Другое</option>
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleDeleteConfirm()}
+                className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Удалить
+              </button>
+              <button
+                onClick={handleDeleteCancel}
+                className="flex-1 py-2 px-4 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -491,16 +548,16 @@ const getModerationStatusInRussian = (status) => {
   }
 };
 
- // Функция для форматирования даты на русском
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+// Функция для форматирования даты на русском
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default Profile;

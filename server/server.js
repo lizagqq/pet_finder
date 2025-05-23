@@ -90,7 +90,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Получение всех животных
+// Получение всех животных (исключаем удалённые)
 app.get('/api/pets', async (req, res) => {
   const { status } = req.query;
   let query = `
@@ -98,7 +98,8 @@ app.get('/api/pets', async (req, res) => {
     FROM pets p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
-    WHERE pms.status = 'approved' OR pms.status IS NULL
+    WHERE (pms.status = 'approved' OR pms.status IS NULL)
+    AND p.id NOT IN (SELECT id FROM deleted_pets)
   `;
 
   if (status) {
@@ -115,7 +116,7 @@ app.get('/api/pets', async (req, res) => {
   }
 });
 
-// Получение всех животных для администратора (включая pending)
+// Получение всех животных для администратора (включая pending, исключаем удалённые)
 app.get('/api/pets/admin', authenticateToken, async (req, res) => {
   const { status } = req.query;
   let query = `
@@ -123,10 +124,11 @@ app.get('/api/pets/admin', authenticateToken, async (req, res) => {
     FROM pets p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
+    WHERE p.id NOT IN (SELECT id FROM deleted_pets)
   `;
 
   if (status) {
-    query += ` WHERE p.status = $1`;
+    query += ` AND p.status = $1`;
   }
 
   try {
@@ -139,7 +141,7 @@ app.get('/api/pets/admin', authenticateToken, async (req, res) => {
   }
 });
 
-// Получение животных на модерации (pending) для администратора
+// Получение животных на модерации (pending) для администратора (исключаем удалённые)
 app.get('/api/pets/admin/pending', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Доступ только для администраторов' });
@@ -153,6 +155,7 @@ app.get('/api/pets/admin/pending', authenticateToken, async (req, res) => {
       JOIN users u ON p.user_id = u.id
       LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
       WHERE pms.status = 'pending'
+      AND p.id NOT IN (SELECT id FROM deleted_pets)  -- Исправлено pets_id на id
       `
     );
     console.log('Server: GET /api/pets/admin/pending, отправлено:', result.rows.length, 'животных на модерации');
@@ -243,30 +246,61 @@ app.put('/api/pets/:id', authenticateToken, async (req, res) => {
 
 // Удаление животного
 app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
+  const petId = req.params.id;
+  const userId = req.user.id;
+  const userRole = req.user.role;
+  const { reason } = req.body;
+
+  const client = await pool.connect();
   try {
-    const petId = req.params.id;
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    await client.query('BEGIN');
 
-    const result = await pool.query('SELECT user_id FROM pets WHERE id = $1', [petId]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Животное не найдено' });
+    // Получаем данные животного только из pets (без JOIN)
+    const petResult = await client.query(
+      'SELECT id, type, status, description, lat, lng, user_id, image, created_at FROM pets WHERE id = $1 FOR UPDATE',
+      [petId]
+    );
+    if (petResult.rows.length === 0) throw new Error('Животное не найдено');
+
+    const pet = petResult.rows[0];
+    if (userRole !== 'admin' && pet.user_id !== userId) {
+      throw new Error('Нет прав для удаления этого животного');
     }
 
-    if (userRole !== 'admin' && result.rows[0].user_id !== userId) {
-      return res.status(403).json({ error: 'Нет прав для удаления этого животного' });
+    if (userRole !== 'admin' && (!reason || !['Животное нашлось', 'Животное так и не нашлось, я потерял надежду'].includes(reason))) {
+      throw new Error('Необходимо указать корректную причину удаления');
     }
 
-    await pool.query('DELETE FROM pets WHERE id = $1', [petId]);
-    console.log('Server: DELETE /api/pets/:id, удалено:', petId);
+    // Переносим данные в deleted_pets
+    await client.query(
+      `INSERT INTO deleted_pets (
+        id, type, status, description, lat, lng, user_id, image, created_at, deleted_at, reason
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10)`,
+      [
+        pet.id, pet.type, pet.status, pet.description, pet.lat, pet.lng, pet.user_id,
+        pet.image, pet.created_at, reason || null
+      ]
+    );
+
+    // Удаляем запись из pet_moderation_status
+    await client.query('DELETE FROM pet_moderation_status WHERE pet_id = $1', [petId]);
+
+    // Удаляем запись из pets
+    await client.query('DELETE FROM pets WHERE id = $1', [petId]);
+
+    await client.query('COMMIT');
+    console.log('Server: DELETE /api/pets/:id, перенесено в deleted_pets:', petId, 'причина:', reason || 'не указана');
     res.json({ message: 'Животное удалено' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Server: DELETE /api/pets/:id error:', err);
-    res.status(500).json({ error: 'Ошибка сервера' });
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
-// Получение животных пользователя
+// Получение животных пользователя (исключаем удалённые)
 app.get('/api/pets/user', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -274,7 +308,8 @@ app.get('/api/pets/user', authenticateToken, async (req, res) => {
       'FROM pets p ' +
       'JOIN users u ON p.user_id = u.id ' +
       'LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id ' +
-      'WHERE p.user_id = $1',
+      'WHERE p.user_id = $1 ' +
+      'AND p.id NOT IN (SELECT id FROM deleted_pets)', // Исправлено pet_id на id
       [req.user.id]
     );
     console.log('Server: GET /api/pets/user, отправлено:', result.rows.length, 'животных');
