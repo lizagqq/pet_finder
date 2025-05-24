@@ -99,7 +99,7 @@ app.get('/api/pets', async (req, res) => {
     JOIN users u ON p.user_id = u.id
     LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
     WHERE (pms.status = 'approved' OR pms.status IS NULL)
-    AND p.id NOT IN (SELECT id FROM deleted_pets)
+    AND p.deleted_at IS NULL
   `;
 
   if (status) {
@@ -124,7 +124,7 @@ app.get('/api/pets/admin', authenticateToken, async (req, res) => {
     FROM pets p
     JOIN users u ON p.user_id = u.id
     LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
-    WHERE p.id NOT IN (SELECT id FROM deleted_pets)
+    WHERE p.deleted_at IS NULL
   `;
 
   if (status) {
@@ -155,7 +155,7 @@ app.get('/api/pets/admin/pending', authenticateToken, async (req, res) => {
       JOIN users u ON p.user_id = u.id
       LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id
       WHERE pms.status = 'pending'
-      AND p.id NOT IN (SELECT id FROM deleted_pets)  -- Исправлено pets_id на id
+      AND p.deleted_at IS NULL
       `
     );
     console.log('Server: GET /api/pets/admin/pending, отправлено:', result.rows.length, 'животных на модерации');
@@ -211,9 +211,12 @@ app.put('/api/pets/:id', authenticateToken, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const result = await pool.query('SELECT user_id FROM pets WHERE id = $1', [petId]);
+    const result = await pool.query('SELECT user_id, deleted_at FROM pets WHERE id = $1', [petId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Животное не найдено' });
+    }
+    if (result.rows[0].deleted_at !== null) {
+      return res.status(400).json({ error: 'Животное уже удалено' });
     }
     if (result.rows[0].user_id !== userId && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Нет прав для редактирования этого животного' });
@@ -244,59 +247,46 @@ app.put('/api/pets/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Удаление животного
+// Удаление животного (теперь используем мягкое удаление)
 app.delete('/api/pets/:id', authenticateToken, async (req, res) => {
   const petId = req.params.id;
   const userId = req.user.id;
   const userRole = req.user.role;
   const { reason } = req.body;
 
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
-    // Получаем данные животного только из pets (без JOIN)
-    const petResult = await client.query(
-      'SELECT id, type, status, description, lat, lng, user_id, image, created_at FROM pets WHERE id = $1 FOR UPDATE',
+    // Проверяем, существует ли запись и не удалена ли она уже
+    const petResult = await pool.query(
+      'SELECT id, user_id, deleted_at FROM pets WHERE id = $1',
       [petId]
     );
-    if (petResult.rows.length === 0) throw new Error('Животное не найдено');
-
+    if (petResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Животное не найдено' });
+    }
     const pet = petResult.rows[0];
+    if (pet.deleted_at !== null) {
+      return res.status(400).json({ error: 'Животное уже удалено' });
+    }
     if (userRole !== 'admin' && pet.user_id !== userId) {
-      throw new Error('Нет прав для удаления этого животного');
+      return res.status(403).json({ error: 'Нет прав для удаления этого животного' });
     }
 
+    // Проверяем причину удаления для не-админов
     if (userRole !== 'admin' && (!reason || !['Животное нашлось', 'Животное так и не нашлось, я потерял надежду'].includes(reason))) {
-      throw new Error('Необходимо указать корректную причину удаления');
+      return res.status(400).json({ error: 'Необходимо указать корректную причину удаления' });
     }
 
-    // Переносим данные в deleted_pets
-    await client.query(
-      `INSERT INTO deleted_pets (
-        id, type, status, description, lat, lng, user_id, image, created_at, deleted_at, reason
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10)`,
-      [
-        pet.id, pet.type, pet.status, pet.description, pet.lat, pet.lng, pet.user_id,
-        pet.image, pet.created_at, reason || null
-      ]
+    // Выполняем мягкое удаление
+    await pool.query(
+      'UPDATE pets SET deleted_at = NOW(), deletion_reason = $1 WHERE id = $2',
+      [reason || null, petId]
     );
 
-    // Удаляем запись из pet_moderation_status
-    await client.query('DELETE FROM pet_moderation_status WHERE pet_id = $1', [petId]);
-
-    // Удаляем запись из pets
-    await client.query('DELETE FROM pets WHERE id = $1', [petId]);
-
-    await client.query('COMMIT');
-    console.log('Server: DELETE /api/pets/:id, перенесено в deleted_pets:', petId, 'причина:', reason || 'не указана');
-    res.json({ message: 'Животное удалено' });
+    console.log('Server: DELETE /api/pets/:id, помечено как удалённое:', petId, 'причина:', reason || 'не указана');
+    res.json({ message: 'Животное помечено как удалённое' });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('Server: DELETE /api/pets/:id error:', err);
-    res.status(400).json({ error: err.message });
-  } finally {
-    client.release();
+    res.status(500).json({ error: 'Ошибка при удалении животного: ' + err.message });
   }
 });
 
@@ -309,7 +299,7 @@ app.get('/api/pets/user', authenticateToken, async (req, res) => {
       'JOIN users u ON p.user_id = u.id ' +
       'LEFT JOIN pet_moderation_status pms ON p.id = pms.pet_id ' +
       'WHERE p.user_id = $1 ' +
-      'AND p.id NOT IN (SELECT id FROM deleted_pets)', // Исправлено pet_id на id
+      'AND p.deleted_at IS NULL',
       [req.user.id]
     );
     console.log('Server: GET /api/pets/user, отправлено:', result.rows.length, 'животных');
@@ -334,9 +324,12 @@ app.put('/api/pets/moderate/:id', authenticateToken, async (req, res) => {
   }
 
   try {
-    const petResult = await pool.query('SELECT id FROM pets WHERE id = $1', [petId]);
+    const petResult = await pool.query('SELECT id, deleted_at FROM pets WHERE id = $1', [petId]);
     if (petResult.rows.length === 0) {
       return res.status(404).json({ error: 'Животное не найдено' });
+    }
+    if (petResult.rows[0].deleted_at !== null) {
+      return res.status(400).json({ error: 'Животное удалено и не может быть отмодерировано' });
     }
 
     const moderationResult = await pool.query(
@@ -400,6 +393,14 @@ app.put('/api/users/me', authenticateToken, async (req, res) => {
 app.get('/api/pets/:id/comments', async (req, res) => {
   const petId = req.params.id;
   try {
+    const petCheck = await pool.query('SELECT deleted_at FROM pets WHERE id = $1', [petId]);
+    if (petCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Объявление не найдено' });
+    }
+    if (petCheck.rows[0].deleted_at !== null) {
+      return res.status(400).json({ error: 'Объявление удалено' });
+    }
+
     const result = await pool.query(
       `SELECT c.id, c.content, c.created_at, u.name
        FROM comments c
@@ -426,6 +427,16 @@ app.post('/api/comments', authenticateToken, async (req, res) => {
   }
 
   try {
+    // Проверяем, существует ли объявление и не удалено ли оно
+    const petCheck = await pool.query('SELECT user_id, type, deleted_at FROM pets WHERE id = $1', [pet_id]);
+    if (petCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Объявление не найдено' });
+    }
+    if (petCheck.rows[0].deleted_at !== null) {
+      return res.status(400).json({ error: 'Объявление удалено' });
+    }
+    const pet = petCheck.rows[0];
+
     // Создаём комментарий
     const result = await pool.query(
       'INSERT INTO comments (pet_id, user_id, content, created_at) VALUES ($1, $2, $3, NOW()) RETURNING *',
@@ -436,16 +447,6 @@ app.post('/api/comments', authenticateToken, async (req, res) => {
     // Получаем имя комментатора
     const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
     comment.name = userResult.rows[0].name;
-
-    // Получаем информацию об объявлении и владельце
-    const petResult = await pool.query(
-      'SELECT p.user_id, p.type FROM pets p WHERE p.id = $1',
-      [pet_id]
-    );
-    if (petResult.rowCount === 0) {
-      return res.status(404).json({ error: 'Объявление не найдено' });
-    }
-    const pet = petResult.rows[0];
 
     // Создаём уведомление для владельца, если комментатор не владелец
     if (pet.user_id !== userId) {
@@ -475,9 +476,15 @@ app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
 
   try {
     // Проверяем, существует ли комментарий и принадлежит ли он пользователю
-    const comment = await pool.query('SELECT user_id FROM comments WHERE id = $1', [commentId]);
+    const comment = await pool.query('SELECT user_id, pet_id FROM comments WHERE id = $1', [commentId]);
     if (comment.rowCount === 0) {
       return res.status(404).json({ error: 'Комментарий не найден' });
+    }
+
+    // Проверяем, не удалено ли объявление
+    const petCheck = await pool.query('SELECT deleted_at FROM pets WHERE id = $1', [comment.rows[0].pet_id]);
+    if (petCheck.rows[0].deleted_at !== null) {
+      return res.status(400).json({ error: 'Объявление удалено, комментарий нельзя удалить' });
     }
 
     // Разрешаем удаление, если пользователь — админ или владелец комментария
@@ -504,6 +511,7 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
        FROM notifications n
        JOIN pets p ON n.pet_id = p.id
        WHERE n.user_id = $1
+       AND p.deleted_at IS NULL
        ORDER BY n.created_at DESC`,
       [userId]
     );
@@ -521,13 +529,23 @@ app.patch('/api/notifications/:id/read', authenticateToken, async (req, res) => 
   const userId = req.user.id;
 
   try {
+    const notificationCheck = await pool.query(
+      'SELECT n.pet_id FROM notifications n WHERE n.id = $1 AND n.user_id = $2',
+      [notificationId, userId]
+    );
+    if (notificationCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Уведомление не найдено или не принадлежит пользователю' });
+    }
+
+    const petCheck = await pool.query('SELECT deleted_at FROM pets WHERE id = $1', [notificationCheck.rows[0].pet_id]);
+    if (petCheck.rows[0].deleted_at !== null) {
+      return res.status(400).json({ error: 'Объявление удалено, уведомление нельзя обновить' });
+    }
+
     const result = await pool.query(
       'UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *',
       [notificationId, userId]
     );
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Уведомление не найдено или не принадлежит пользователю' });
-    }
     console.log(`Server: PATCH /api/notifications/${notificationId}/read, уведомление отмечено прочитанным для userId=${userId}`);
     res.json(result.rows[0]);
   } catch (error) {
