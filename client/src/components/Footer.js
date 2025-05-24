@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const Footer = () => {
   return (
-    <footer className="bg-gradient-to-r from-amber-500 to-orange-300 text-white py-4 mt-8 shadow-lg w-full">
+    <footer className="bg-gradient-to-r from-amber-500 to-orange-300 text-white py-4 mt-auto shadow-lg w-full">
       <div className="px-2">
         <div className="flex flex-col md:flex-row justify-between gap-4">
           {/* О нас */}

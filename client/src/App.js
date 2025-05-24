@@ -22,9 +22,9 @@ const Layout = ({ children }) => {
   const showFooter = location.pathname !== '/'; // Показываем Footer везде, кроме HomePage
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50">
       <Navbar />
-      <div className="pt-16">
+      <div className="flex-grow pt-16">
         {children}
       </div>
       {showFooter && <Footer />}
