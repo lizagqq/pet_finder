@@ -39,7 +39,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-yellow-600 to-yellow-200 text-white p-4 shadow-lg fixed w-full z-10 backdrop-blur-md border-b border-yellow-300">
+    <nav className="bg-gradient-to-r from-amber-500 to-orange-300 text-white p-4 shadow-lg fixed w-full z-10 backdrop-blur-md border-b border-amber-200">
       <div className="container mx-auto flex justify-between items-center">
         <Link to="/" className="text-2xl font-display font-bold text-white flex items-center">
           <span role="img" aria-label="paw">🐾</span> Pet Finder

@@ -25,7 +25,8 @@ const MapPage = () => {
         setError('Ошибка авторизации. Пожалуйста, войдите заново.');
       }
     } else {
-      setError('Вы не авторизованы. Пожалуйста, войдите в аккаунт.');
+      setUserRole(null); // Неавторизованный пользователь
+      console.log('MapPage: Токен отсутствует, пользователь не авторизован');
     }
   }, []);
 
@@ -41,11 +42,12 @@ const MapPage = () => {
 
   // Загрузка животных
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const fetchPets = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/pets', {
-          headers: { 'Authorization': `Bearer ${token}` },
+        const token = localStorage.getItem('token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const response = await fetch(`http://localhost:5000/api/pets${filterStatus ? `?status=${filterStatus}` : ''}`, {
+          headers,
         });
         if (!response.ok) {
           const errorData = await response.json();
@@ -54,13 +56,14 @@ const MapPage = () => {
         const data = await response.json();
         console.log('MapPage: Полученные данные питомцев:', data);
         setPets(data);
+        setError(null); // Сбрасываем ошибку при успешной загрузке
       } catch (error) {
         console.error('MapPage: Ошибка при загрузке данных о питомцах:', error);
         setError(error.message);
       }
     };
     fetchPets();
-  }, []);
+  }, [filterStatus]); // Добавляем filterStatus в зависимости, чтобы обновлять данные при изменении фильтра
 
   const handleFilterChange = (status) => {
     setFilterStatus(status);
@@ -71,7 +74,7 @@ const MapPage = () => {
     setSelectedPet(pet);
   };
 
-  // Фильтрация питомцев
+  // Фильтрация питомцев на клиенте (оставляем как резервную, но сервер теперь фильтрует)
   const filteredPets = filterStatus
     ? pets.filter((pet) => pet.status === filterStatus)
     : pets;
@@ -129,11 +132,11 @@ const MapPage = () => {
   );
 };
 
-// Функция удаления (должна быть внутри компонента)
-const handleDelete = async (petId) => {
+// Функция удаления
+const handleDelete = async (petId, reason) => {
   const token = localStorage.getItem('token');
   if (!token) {
-    setError('Вы не авторизованы.');
+    alert('Вы не авторизованы.');
     return;
   }
 
@@ -142,18 +145,21 @@ const handleDelete = async (petId) => {
   try {
     const response = await fetch(`http://localhost:5000/api/pets/${petId}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reason }), // Передаем причину удаления
     });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.error || `Ошибка ${response.status}: Не удалось удалить животное`);
     }
-    setPets(pets.filter(pet => pet.id !== petId));
+    setPets((prevPets) => prevPets.filter((pet) => pet.id !== petId));
     alert('Животное удалено!');
-    setError(null);
   } catch (err) {
     console.error('MapPage: Ошибка удаления:', err);
-    setError(err.message);
+    alert(err.message);
   }
 };
 

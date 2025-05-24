@@ -396,6 +396,146 @@ app.put('/api/users/me', authenticateToken, async (req, res) => {
   }
 });
 
+// Получение комментариев к объявлению
+app.get('/api/pets/:id/comments', async (req, res) => {
+  const petId = req.params.id;
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.content, c.created_at, u.name
+       FROM comments c
+       JOIN users u ON c.user_id = u.id
+       WHERE c.pet_id = $1
+       ORDER BY c.created_at DESC`,
+      [petId]
+    );
+    console.log(`Server: GET /api/pets/${petId}/comments, отправлено: ${result.rows.length} комментариев`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Server: Ошибка получения комментариев:', error);
+    res.status(500).json({ error: 'Ошибка при получении комментариев' });
+  }
+});
+
+// Добавление комментария
+app.post('/api/comments', authenticateToken, async (req, res) => {
+  const { pet_id, content } = req.body;
+  const userId = req.user.id;
+
+  if (!content || !pet_id) {
+    return res.status(400).json({ error: 'Не указан текст комментария или ID объявления' });
+  }
+
+  try {
+    // Создаём комментарий
+    const result = await pool.query(
+      'INSERT INTO comments (pet_id, user_id, content, created_at) VALUES ($1, $2, $3, NOW()) RETURNING *',
+      [pet_id, userId, content]
+    );
+    const comment = result.rows[0];
+
+    // Получаем имя комментатора
+    const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [userId]);
+    comment.name = userResult.rows[0].name;
+
+    // Получаем информацию об объявлении и владельце
+    const petResult = await pool.query(
+      'SELECT p.user_id, p.type FROM pets p WHERE p.id = $1',
+      [pet_id]
+    );
+    if (petResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Объявление не найдено' });
+    }
+    const pet = petResult.rows[0];
+
+    // Создаём уведомление для владельца, если комментатор не владелец
+    if (pet.user_id !== userId) {
+      const notificationMessage = `Новый комментарий от ${comment.name}: ${comment.content}`;
+      await pool.query(
+        'INSERT INTO notifications (user_id, pet_id, comment_id, type, message, created_at, read) VALUES ($1, $2, $3, $4, $5, NOW(), $6)',
+        [pet.user_id, pet_id, comment.id, 'new_comment', notificationMessage, false]
+      );
+      console.log(`Server: Создано уведомление для userId=${pet.user_id}, pet_id=${pet_id}, comment_id=${comment.id}`);
+    } else {
+      console.log(`Server: Уведомление не создано, так как комментатор (userId=${userId}) является владельцем объявления`);
+    }
+
+    console.log('Server: POST /api/comments, добавлен комментарий:', comment);
+    res.json(comment);
+  } catch (error) {
+    console.error('Server: Ошибка добавления комментария или создания уведомления:', error);
+    res.status(500).json({ error: 'Ошибка при добавлении комментария' });
+  }
+});
+
+// Удаление комментария (для админов или владельца комментария)
+app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
+  const commentId = req.params.id;
+  const userId = req.user.id;
+  const userRole = req.user.role;
+
+  try {
+    // Проверяем, существует ли комментарий и принадлежит ли он пользователю
+    const comment = await pool.query('SELECT user_id FROM comments WHERE id = $1', [commentId]);
+    if (comment.rowCount === 0) {
+      return res.status(404).json({ error: 'Комментарий не найден' });
+    }
+
+    // Разрешаем удаление, если пользователь — админ или владелец комментария
+    if (userRole !== 'admin' && comment.rows[0].user_id !== userId) {
+      return res.status(403).json({ error: 'Доступ запрещён. Вы не автор комментария или не администратор.' });
+    }
+
+    // Удаляем комментарий
+    await pool.query('DELETE FROM comments WHERE id = $1', [commentId]);
+    console.log(`Server: DELETE /api/comments/${commentId}, удалён пользователем userId=${userId}, role=${userRole}`);
+    res.json({ message: 'Комментарий удалён' });
+  } catch (error) {
+    console.error('Server: Ошибка удаления комментария:', error);
+    res.status(500).json({ error: 'Ошибка при удалении комментария' });
+  }
+});
+
+// Получение уведомлений пользователя
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const result = await pool.query(
+      `SELECT n.id, n.pet_id, n.comment_id, n.type, n.message, n.created_at, n.read, p.type AS pet_type
+       FROM notifications n
+       JOIN pets p ON n.pet_id = p.id
+       WHERE n.user_id = $1
+       ORDER BY n.created_at DESC`,
+      [userId]
+    );
+    console.log(`Server: GET /api/notifications, отправлено ${result.rows.length} уведомлений для userId=${userId}`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Server: Ошибка получения уведомлений:', error);
+    res.status(500).json({ error: 'Ошибка при получении уведомлений' });
+  }
+});
+
+// Отметка уведомления как прочитанного
+app.patch('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  const notificationId = req.params.id;
+  const userId = req.user.id;
+
+  try {
+    const result = await pool.query(
+      'UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *',
+      [notificationId, userId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Уведомление не найдено или не принадлежит пользователю' });
+    }
+    console.log(`Server: PATCH /api/notifications/${notificationId}/read, уведомление отмечено прочитанным для userId=${userId}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Server: Ошибка обновления уведомления:', error);
+    res.status(500).json({ error: 'Ошибка при обновлении уведомления' });
+  }
+});
+
 // Обработка 404 для API
 app.use('/api/*', (req, res) => {
   res.status(404).json({ error: 'Маршрут не найден' });

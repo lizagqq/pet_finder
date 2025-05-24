@@ -6,6 +6,7 @@ const Profile = ({ user: userFromProps }) => {
   const [user, setUser] = useState(null);
   const [pets, setPets] = useState([]);
   const [pendingPets, setPendingPets] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editedUser, setEditedUser] = useState({ name: '', phone: '' });
@@ -95,10 +96,71 @@ const Profile = ({ user: userFromProps }) => {
       }
     };
 
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/notifications', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Ошибка загрузки уведомлений');
+        }
+        const data = await response.json();
+        setNotifications(data);
+        console.log('Profile: Получены уведомления:', data);
+      } catch (err) {
+        console.error('Profile: Ошибка загрузки уведомлений:', err);
+        setError(err.message);
+      }
+    };
+
     fetchUser();
     fetchPets();
     fetchPendingPets();
+    fetchNotifications();
   }, []);
+
+  const markAsRead = async (notificationId) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ошибка при обновлении уведомления');
+      }
+      setNotifications(
+        notifications.map((n) =>
+          n.id === notificationId ? { ...n, read: true } : n
+        )
+      );
+      console.log(`Profile: Уведомление ${notificationId} отмечено прочитанным`);
+    } catch (err) {
+      console.error('Profile: Ошибка отметки как прочитанного:', err);
+      setError(err.message);
+    }
+  };
+
+  const deleteNotification = async (notificationId) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Ошибка удаления уведомления');
+      }
+      setNotifications(notifications.filter((n) => n.id !== notificationId));
+      console.log(`Profile: Уведомление ${notificationId} удалено`);
+    } catch (err) {
+      console.error('Profile: Ошибка удаления уведомления:', err);
+      setError(err.message);
+    }
+  };
 
   const handleEditProfileClick = () => setIsEditingProfile(true);
   const handleSaveProfileClick = async () => {
@@ -180,10 +242,8 @@ const Profile = ({ user: userFromProps }) => {
 
   const handleDeleteClick = (petId) => {
     if (user.role === 'admin') {
-      // Для админа удаляем сразу без причины
       handleDeleteConfirm(petId);
     } else {
-      // Для обычного пользователя показываем модальное окно
       setPetToDelete(petId);
       setShowDeleteModal(true);
     }
@@ -266,6 +326,7 @@ const Profile = ({ user: userFromProps }) => {
     setUser(null);
     setPets([]);
     setPendingPets([]);
+    setNotifications([]);
     setNotification(null);
     const token = localStorage.getItem('token');
     if (token) {
@@ -276,6 +337,10 @@ const Profile = ({ user: userFromProps }) => {
       fetch('http://localhost:5000/api/pets/user', { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json())
         .then(data => setPets(data))
+        .catch(err => setError(err.message));
+      fetch('http://localhost:5000/api/notifications', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => setNotifications(data))
         .catch(err => setError(err.message));
       if (jwtDecode(token).role === 'admin') {
         fetch('http://localhost:5000/api/pets/admin/pending', { headers: { 'Authorization': `Bearer ${token}` } })
@@ -302,6 +367,8 @@ const Profile = ({ user: userFromProps }) => {
       <p className="text-gray-600">Загрузка...</p>
     </div>
   );
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="container mx-auto p-4">
@@ -356,6 +423,52 @@ const Profile = ({ user: userFromProps }) => {
         </div>
 
         <div className="md:w-2/3">
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">
+              Уведомления {unreadCount > 0 && <span className="text-red-500">({unreadCount})</span>}
+            </h2>
+            {notifications.length === 0 ? (
+              <p className="text-gray-600">Уведомлений пока нет.</p>
+            ) : (
+              <ul className="space-y-4">
+                {notifications.map((notification) => (
+                  <li
+                    key={notification.id}
+                    className={`p-4 border rounded-lg ${
+                      notification.read ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-gray-800'
+                    }`}
+                  >
+                    <p className="text-sm">
+                      <strong>{notification.pet_type}:</strong> {notification.message}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(notification.created_at).toLocaleString('ru-RU')}
+                    </p>
+                    <div className="flex gap-4 mt-2">
+                      <Link to={`/map?petId=${notification.pet_id}`} className="text-blue-500 hover:underline text-sm">
+                        Перейти к объявлению
+                      </Link>
+                      {!notification.read && (
+                        <button
+                          onClick={() => markAsRead(notification.id)}
+                          className="text-green-500 hover:underline text-sm"
+                        >
+                          Отметить прочитанным
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteNotification(notification.id)}
+                        className="text-red-500 hover:underline text-sm"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {user.role !== 'admin' && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex justify-between items-center mb-4">
@@ -498,10 +611,9 @@ const Profile = ({ user: userFromProps }) => {
         </div>
       </div>
 
-      {/* Модальное окно для выбора причины удаления */}
       {showDeleteModal && user.role !== 'admin' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-         <div className="bg-white rounded-lg p-6 w-full max-w-lg"> {/* Изменено с max-w-md на max-w-lg */}
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold mb-4">Почему вы хотите удалить объявление?</h2>
             <select
               value={deleteReason}
@@ -534,7 +646,6 @@ const Profile = ({ user: userFromProps }) => {
   );
 };
 
-// Функция для перевода статуса модерации на русский
 const getModerationStatusInRussian = (status) => {
   switch (status) {
     case 'pending':
@@ -548,7 +659,6 @@ const getModerationStatusInRussian = (status) => {
   }
 };
 
-// Функция для форматирования даты на русском
 const formatDate = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleDateString('ru-RU', {
