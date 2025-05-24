@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PetForm from './components/PetForm';
 
+
 const AddPetPage = () => {
   const [pets, setPets] = useState([]);
   const [selectedCoords, setSelectedCoords] = useState(null); // [lat, lng]

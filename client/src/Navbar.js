@@ -54,9 +54,6 @@ const Navbar = () => {
           <Link to="/add-pet" className="hover:text-yellow-200 transition-colors flex items-center">
             <span role="img" aria-label="plus">➕</span> Добавить
           </Link>
-          <Link to="/about" className="hover:text-yellow-200 transition-colors flex items-center">
-            <span role="img" aria-label="info">ℹ️</span> О проекте
-          </Link>
           {isAuthenticated && (
             <Link to="/profile" className="hover:text-yellow-200 transition-colors flex items-center">
               <span role="img" aria-label="user">👤</span> Профиль

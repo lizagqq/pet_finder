@@ -4,6 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 import Map from './components/Map';
 import PetList from './components/PetList';
 
+
 const MapPage = () => {
   const [pets, setPets] = useState([]);
   const [filterStatus, setFilterStatus] = useState('');
@@ -12,7 +13,6 @@ const MapPage = () => {
   const [error, setError] = useState(null);
   const location = useLocation();
 
-  // Получение роли пользователя из токена
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -25,22 +25,30 @@ const MapPage = () => {
         setError('Ошибка авторизации. Пожалуйста, войдите заново.');
       }
     } else {
-      setUserRole(null); // Неавторизованный пользователь
+      setUserRole(null);
       console.log('MapPage: Токен отсутствует, пользователь не авторизован');
     }
-  }, []);
 
-  // Обработка URL-параметра filter
+    const queryParams = new URLSearchParams(location.search);
+    const petId = queryParams.get('petId');
+    if (petId && pets.length > 0) {
+      const pet = pets.find((p) => p.id === parseInt(petId));
+      if (pet) {
+        setSelectedPet(pet);
+        console.log('MapPage: Выбрано объявление по petId:', pet);
+      }
+    }
+  }, [location.search, pets]);
+
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const filter = queryParams.get('filter');
     if (filter === 'lost') setFilterStatus('Потеряно');
     else if (filter === 'founded') setFilterStatus('Найдено');
     else setFilterStatus('');
-    console.log('URL filter:', filter, 'filterStatus:', filterStatus);
+    console.log('MapPage: URL filter:', filter, 'filterStatus:', filterStatus);
   }, [location.search]);
 
-  // Загрузка животных
   useEffect(() => {
     const fetchPets = async () => {
       try {
@@ -56,29 +64,62 @@ const MapPage = () => {
         const data = await response.json();
         console.log('MapPage: Полученные данные питомцев:', data);
         setPets(data);
-        setError(null); // Сбрасываем ошибку при успешной загрузке
+        setError(null);
       } catch (error) {
         console.error('MapPage: Ошибка при загрузке данных о питомцах:', error);
         setError(error.message);
       }
     };
     fetchPets();
-  }, [filterStatus]); // Добавляем filterStatus в зависимости, чтобы обновлять данные при изменении фильтра
+  }, [filterStatus]);
 
   const handleFilterChange = (status) => {
     setFilterStatus(status);
-    console.log('Filter changed to:', status);
+    console.log('MapPage: Filter changed to:', status);
   };
 
   const handlePetClick = (pet) => {
     setSelectedPet(pet);
+    console.log('MapPage: Выбрано объявление:', pet);
   };
 
-  // Фильтрация питомцев на клиенте (оставляем как резервную, но сервер теперь фильтрует)
+  const handleDelete = async (petId, reason) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Вы не авторизованы.');
+      return;
+    }
+
+    if (!window.confirm('Вы уверены, что хотите удалить это животное?')) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/pets/${petId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Ошибка ${response.status}: Не удалось удалить животное`);
+      }
+      setPets((prevPets) => prevPets.filter((pet) => pet.id !== petId));
+      if (selectedPet && selectedPet.id === petId) {
+        setSelectedPet(null);
+      }
+      alert('Животное удалено!');
+    } catch (err) {
+      console.error('MapPage: Ошибка удаления:', err);
+      alert(err.message);
+    }
+  };
+
   const filteredPets = filterStatus
     ? pets.filter((pet) => pet.status === filterStatus)
     : pets;
-  console.log('Filtered pets:', filteredPets);
+  console.log('MapPage: Filtered pets:', filteredPets);
 
   if (error) return (
     <div className="container mx-auto p-4">
@@ -91,7 +132,6 @@ const MapPage = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Карта и список животных</h1>
 
-      {/* Кнопки фильтрации */}
       <div className="mb-4 space-x-2">
         <button
           onClick={() => handleFilterChange('Потеряно')}
@@ -113,54 +153,21 @@ const MapPage = () => {
         </button>
       </div>
 
-      {/* Карта */}
       <div className="mb-8">
-        <Map pets={filteredPets} selectedPet={selectedPet} />
+        <Map pets={filteredPets} selectedPet={selectedPet} onPetClick={handlePetClick} />
       </div>
 
-      {/* Список животных */}
       <div>
         <h2 className="text-xl font-semibold mb-4">Список животных</h2>
         <PetList
           pets={filteredPets}
           onPetClick={handlePetClick}
           userRole={userRole}
-          onDelete={handleDelete} // Передаем функцию удаления
+          onDelete={handleDelete}
         />
       </div>
     </div>
   );
-};
-
-// Функция удаления
-const handleDelete = async (petId, reason) => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    alert('Вы не авторизованы.');
-    return;
-  }
-
-  if (!window.confirm('Вы уверены, что хотите удалить это животное?')) return;
-
-  try {
-    const response = await fetch(`http://localhost:5000/api/pets/${petId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ reason }), // Передаем причину удаления
-    });
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Ошибка ${response.status}: Не удалось удалить животное`);
-    }
-    setPets((prevPets) => prevPets.filter((pet) => pet.id !== petId));
-    alert('Животное удалено!');
-  } catch (err) {
-    console.error('MapPage: Ошибка удаления:', err);
-    alert(err.message);
-  }
 };
 
 export default MapPage;
